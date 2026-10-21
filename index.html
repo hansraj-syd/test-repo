@@ -3,56 +3,86 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>FX Hedgeboy</title>
+<title>STIRBoy Tomnexter</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
   body {
-    background: #2d2d2d;
+    background: #3a3a5c;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100dvh;
     font-family: 'Press Start 2P', monospace;
-    overflow: hidden;
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
   }
 
   #gameboy {
-    background: #b0b0b0;
-    border-radius: 18px 18px 60px 18px;
-    padding: 16px;
-    max-width: 420px;
+    background: linear-gradient(145deg, #c8c8c8 0%, #a8a8a8 50%, #989898 100%);
+    border-radius: 16px 16px 80px 16px;
+    padding: 10px 10px 14px;
     width: 100%;
-    box-shadow: 4px 4px 0 #888, inset 0 0 8px rgba(0,0,0,0.2);
+    height: 100%;
+    max-width: 500px;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
+    box-shadow: 4px 4px 0 #666, inset 0 1px 0 rgba(255,255,255,0.3);
+    position: relative;
+  }
+
+  /* Top label */
+  .top-brand {
+    color: #6a6a8a;
+    font-size: 6px;
+    letter-spacing: 3px;
+    margin-bottom: 4px;
+    text-align: center;
   }
 
   #screen-bezel {
     background: #4a4a6a;
     border-radius: 8px;
-    padding: 12px 10px 8px;
+    padding: 8px 8px 6px;
     width: 100%;
-    margin-bottom: 8px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
   .screen-label {
     color: #8888aa;
-    font-size: 6px;
-    text-align: center;
-    margin-bottom: 4px;
+    font-size: 5px;
+    text-align: left;
+    margin-bottom: 3px;
     letter-spacing: 2px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .screen-label .dot {
+    width: 6px;
+    height: 6px;
+    background: #c03030;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: inset -1px -1px 0 rgba(0,0,0,0.3);
   }
 
   #gameCanvas {
     width: 100%;
-    aspect-ratio: 10 / 9;
+    flex: 1;
     display: block;
     background: #9bbc0f;
     border-radius: 4px;
@@ -61,31 +91,35 @@
 
   .screen-bottom-label {
     color: #8888aa;
-    font-size: 5px;
+    font-size: 4px;
     text-align: center;
-    margin-top: 4px;
+    margin-top: 2px;
     letter-spacing: 4px;
   }
 
+  /* Controls area */
   #controls {
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 4px;
+    padding: 8px 6px 0;
+    flex-shrink: 0;
   }
 
+  /* D-pad */
   .dpad {
     display: grid;
-    grid-template: 36px 36px 36px / 36px 36px 36px;
+    grid-template: 40px 40px 40px / 40px 40px 40px;
     gap: 0;
+    flex-shrink: 0;
   }
 
   .dpad-btn {
     background: #2d2d2d;
     border: none;
-    color: #aaa;
-    font-size: 14px;
+    color: #888;
+    font-size: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -93,22 +127,31 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  .dpad-btn:active { background: #444; }
-  .dpad-up { grid-column: 2; border-radius: 4px 4px 0 0; }
-  .dpad-down { grid-column: 2; border-radius: 0 0 4px 4px; }
-  .dpad-left { grid-row: 2; border-radius: 4px 0 0 4px; }
-  .dpad-right { grid-row: 2; grid-column: 3; border-radius: 0 4px 4px 0; }
+  .dpad-btn:active { background: #505050; color: #ccc; }
+  .dpad-up { grid-column: 2; border-radius: 6px 6px 0 0; }
+  .dpad-down { grid-column: 2; border-radius: 0 0 6px 6px; }
+  .dpad-left { grid-row: 2; border-radius: 6px 0 0 6px; }
+  .dpad-right { grid-row: 2; grid-column: 3; border-radius: 0 6px 6px 0; }
   .dpad-center { grid-row: 2; grid-column: 2; background: #333; }
+  .dpad-empty { background: transparent; }
 
-  .action-buttons {
+  /* Action buttons */
+  .action-area {
     display: flex;
-    gap: 8px;
-    transform: rotate(-20deg);
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 10px;
   }
 
   .action-btn {
-    width: 52px;
-    height: 52px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     border: none;
     font-family: 'Press Start 2P', monospace;
@@ -118,32 +161,43 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    line-height: 1.3;
+    line-height: 1.4;
     -webkit-tap-highlight-color: transparent;
-    box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+    box-shadow: 2px 3px 0 rgba(0,0,0,0.4);
   }
 
-  .action-btn:active { transform: scale(0.95); box-shadow: 1px 1px 0 rgba(0,0,0,0.3); }
+  .action-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
 
   .btn-lhs {
-    background: #c03030;
+    background: #b02020;
     color: #fff;
   }
 
   .btn-rhs {
-    background: #c03030;
+    background: #b02020;
     color: #fff;
-    margin-top: -16px;
   }
 
+  .btn-labels {
+    font-size: 5px;
+    color: #666;
+    display: flex;
+    gap: 30px;
+  }
+
+  /* Meta buttons */
   .meta-buttons {
     display: flex;
-    gap: 12px;
-    margin-bottom: 4px;
+    gap: 16px;
+    margin-top: 6px;
+    flex-shrink: 0;
   }
 
   .meta-btn {
-    width: 40px;
+    width: 48px;
     height: 12px;
     border-radius: 6px;
     border: none;
@@ -156,21 +210,54 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  @media (max-height: 600px) {
-    #gameboy { padding: 8px; border-radius: 12px 12px 40px 12px; }
-    #screen-bezel { padding: 6px 6px 4px; margin-bottom: 4px; }
-    .dpad { grid-template: 28px 28px 28px / 28px 28px 28px; }
-    .action-btn { width: 42px; height: 42px; font-size: 6px; }
+  .meta-btn:active { background: #999; }
+
+  /* Speaker grille */
+  .speaker {
+    position: absolute;
+    bottom: 18px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transform: rotate(-25deg);
+  }
+
+  .speaker-line {
+    width: 24px;
+    height: 2px;
+    background: #888;
+    border-radius: 1px;
+  }
+
+  /* Responsive */
+  @media (max-height: 580px) {
+    #gameboy { padding: 6px 8px 10px; border-radius: 10px 10px 50px 10px; }
+    #screen-bezel { padding: 4px 6px 4px; }
+    .dpad { grid-template: 32px 32px 32px / 32px 32px 32px; }
+    .action-btn { width: 46px; height: 46px; font-size: 6px; }
+    #controls { padding: 4px 4px 0; }
+    .meta-buttons { margin-top: 3px; }
+  }
+
+  @media (min-height: 800px) {
+    .dpad { grid-template: 46px 46px 46px / 46px 46px 46px; }
+    .action-btn { width: 62px; height: 62px; font-size: 8px; }
   }
 </style>
 </head>
 <body>
 
 <div id="gameboy">
+  <div class="top-brand">STIRBoy&trade; TOMNEXTER</div>
+
   <div id="screen-bezel">
-    <div class="screen-label">FX HEDGEBOY</div>
+    <div class="screen-label">
+      <span><span class="dot"></span> POWER</span>
+      <span>STIRBOY TOMNEXTER</span>
+    </div>
     <canvas id="gameCanvas" width="400" height="360"></canvas>
-    <div class="screen-bottom-label">ANTHROPIC&trade;</div>
+    <div class="screen-bottom-label">&copy; 2026 TOMNEXTER SYSTEMS</div>
   </div>
 
   <div class="meta-buttons">
@@ -180,27 +267,56 @@
 
   <div id="controls">
     <div class="dpad">
+      <div class="dpad-empty"></div>
       <button class="dpad-btn dpad-up" id="dUp">&#9650;</button>
+      <div class="dpad-empty"></div>
       <button class="dpad-btn dpad-left" id="dLeft">&#9664;</button>
       <div class="dpad-center"></div>
       <button class="dpad-btn dpad-right" id="dRight">&#9654;</button>
+      <div class="dpad-empty"></div>
       <button class="dpad-btn dpad-down" id="dDown">&#9660;</button>
+      <div class="dpad-empty"></div>
     </div>
 
-    <div class="action-buttons">
-      <button class="action-btn btn-rhs" id="btnRHS">RHS<br>BUY</button>
-      <button class="action-btn btn-lhs" id="btnLHS">LHS<br>SELL</button>
+    <div class="action-area">
+      <div class="action-row">
+        <button class="action-btn btn-rhs" id="btnRHS">RHS<br>BUY</button>
+        <button class="action-btn btn-lhs" id="btnLHS">LHS<br>SELL</button>
+      </div>
+      <div class="btn-labels">
+        <span>B</span>
+        <span>A</span>
+      </div>
     </div>
+  </div>
+
+  <div class="speaker">
+    <div class="speaker-line"></div>
+    <div class="speaker-line"></div>
+    <div class="speaker-line"></div>
+    <div class="speaker-line"></div>
+    <div class="speaker-line"></div>
+    <div class="speaker-line"></div>
   </div>
 </div>
 
 <script>
-// ============================================
-// FX HEDGEBOY - Space Invaders meets FX Trading
-// ============================================
+// =============================================
+// STIRBoy Tomnexter - FX Trading Arcade
+// =============================================
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+
+// Resize canvas to match display
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.floor(rect.width * (window.devicePixelRatio > 1 ? 2 : 1));
+  canvas.height = Math.floor(rect.height * (window.devicePixelRatio > 1 ? 2 : 1));
+  // Update player Y position
+  game.player.y = canvas.height - 50;
+}
+window.addEventListener('resize', resizeCanvas);
 
 // Game Boy palette
 const GB = {
@@ -209,7 +325,6 @@ const GB = {
   light:    '#8bac0f',
   lightest: '#9bbc0f',
   bg:       '#9bbc0f',
-  red:      '#0f380f',
 };
 
 // Currency pairs
@@ -223,44 +338,62 @@ const TENOR_WAVES = [
   { tenors: ['9M','1Y','2Y'], minSize: 50, maxSize: 500, speed: 0.8, label: 'LONG DATES' },
 ];
 
+// Miss taunts
+const MISS_TAUNTS = [
+  'MISSED! TOO SLOW!',
+  'THAT ONE GOT AWAY!',
+  'CLIENT NOT HAPPY!',
+  'SALES ON LINE 2...',
+  'BROKER IS LAUGHING',
+  'SHOULDA HEDGED THAT',
+  'SLIPPED THROUGH!',
+  'OFF THE RUN!',
+  'TICKET DROPPED!',
+  'ASLEEP AT THE DESK?',
+  'WHERE WERE YOU?!',
+  'NICE ONE CHAMP...',
+];
+
 // Surprise events
 const EVENTS = [
-  { name: 'NFP RELEASE', effect: 'speedup', duration: 300, color: '#306230' },
-  { name: 'CPI PRINT!', effect: 'speedup', duration: 300, color: '#306230' },
-  { name: 'FOMC DECISION', effect: 'chaos', duration: 400, color: '#306230' },
-  { name: 'O/N CUTOFF', effect: 'flood', duration: 250, color: '#306230' },
-  { name: 'SYD>LDN HANDOVER', effect: 'shift', duration: 200, color: '#306230' },
-  { name: 'LDN>NY HANDOVER', effect: 'shift', duration: 200, color: '#306230' },
-  { name: 'BASIS BLOW-OUT!', effect: 'split', duration: 350, color: '#306230' },
-  { name: 'FUNDING SQUEEZE', effect: 'accel', duration: 300, color: '#306230' },
-  { name: 'YEAR-END TURN', effect: 'boss', duration: 500, color: '#0f380f' },
+  { name: 'NFP RELEASE!', effect: 'speedup', duration: 300 },
+  { name: 'CPI PRINT!', effect: 'speedup', duration: 300 },
+  { name: 'FOMC DECISION!', effect: 'chaos', duration: 400 },
+  { name: 'O/N CUTOFF!', effect: 'flood', duration: 250 },
+  { name: 'SYD>LDN HANDOVER', effect: 'shift', duration: 200 },
+  { name: 'LDN>NY HANDOVER', effect: 'shift', duration: 200 },
+  { name: 'BASIS BLOW-OUT!', effect: 'split', duration: 350 },
+  { name: 'FUNDING SQUEEZE!', effect: 'accel', duration: 300 },
+  { name: 'YEAR-END TURN!', effect: 'boss', duration: 500 },
 ];
 
 // Game state
 let game = {
-  state: 'title', // title, playing, paused, gameover
+  state: 'title',
   score: 0,
-  lives: 3,
+  lives: 5,
   wave: 1,
   streak: 0,
   bestStreak: 0,
-  player: { x: 200, y: 320, w: 40, h: 16, speed: 4 },
+  missed: 0,
+  player: { x: 200, y: 310, w: 40, h: 16, speed: 5 },
   invaders: [],
   bullets: [],
   particles: [],
+  floatTexts: [],
   event: null,
   eventTimer: 0,
   spawnTimer: 0,
-  spawnRate: 80,
+  spawnRate: 90,
   waveKills: 0,
-  waveTarget: 8,
+  waveTarget: 10,
   keys: { left: false, right: false },
-  lastLHS: false,
-  highScore: parseInt(localStorage.getItem('fxhedgeboy_hi') || '0'),
+  highScore: parseInt(localStorage.getItem('stirboy_hi') || '0'),
   flashTimer: 0,
   flashMsg: '',
   titleAnim: 0,
   sessionCity: 'SYDNEY',
+  bulletCooldown: 0,
 };
 
 function formatSize(mio) {
@@ -276,54 +409,53 @@ function getWaveConfig() {
   return TENOR_WAVES[idx];
 }
 
+function addFloatText(x, y, text, good) {
+  game.floatTexts.push({ x, y, text, good, life: 60, startY: y });
+}
+
 function spawnInvader() {
   let cfg = getWaveConfig();
   let ccy = randEl(CCYS);
   let tenor = randEl(cfg.tenors);
   let size = randInt(cfg.minSize / 50, cfg.maxSize / 50) * 50;
   let isLHS = Math.random() < 0.5;
-  let speedMult = 1 + (game.wave - 1) * 0.08;
+  let speedMult = 1 + (game.wave - 1) * 0.06;
   let eventSpeedMult = 1;
 
   if (game.event) {
-    if (game.event.effect === 'speedup' || game.event.effect === 'chaos') eventSpeedMult = 1.6;
-    if (game.event.effect === 'accel') eventSpeedMult = 2.0;
-    if (game.event.effect === 'boss') eventSpeedMult = 1.8;
+    if (game.event.effect === 'speedup' || game.event.effect === 'chaos') eventSpeedMult = 1.5;
+    if (game.event.effect === 'accel') eventSpeedMult = 1.8;
+    if (game.event.effect === 'boss') eventSpeedMult = 1.6;
   }
 
-  let sizeForEvent = size;
-  if (game.event && game.event.effect === 'accel') sizeForEvent = size * 2;
+  if (game.event && game.event.effect === 'accel') size = Math.min(size * 2, 2000);
 
-  let invW = 70;
+  let invW = Math.floor(canvas.width * 0.2);
+  if (invW < 60) invW = 60;
+  if (invW > 90) invW = 90;
   let x = randInt(10, canvas.width - invW - 10);
 
   return {
-    x: x,
-    y: -20,
-    w: invW,
-    h: 28,
-    speed: cfg.speed * speedMult * eventSpeedMult * (0.8 + Math.random() * 0.4),
-    ccy: ccy,
-    tenor: tenor,
-    size: sizeForEvent,
-    isLHS: isLHS,
-    alive: true,
-    flash: 0,
-    hp: game.wave > 6 ? 2 : 1,
+    x, y: -30,
+    w: invW, h: 32,
+    speed: cfg.speed * speedMult * eventSpeedMult * (0.85 + Math.random() * 0.3),
+    ccy, tenor, size, isLHS,
+    alive: true, flash: 0,
+    hp: game.wave > 8 ? 2 : 1,
   };
 }
 
 function fireBullet(isLHS) {
+  if (game.state === 'title') { resetGame(); return; }
+  if (game.state === 'gameover') { game.state = 'title'; return; }
   if (game.state !== 'playing') return;
-  game.lastLHS = isLHS;
+  if (game.bulletCooldown > 0) return;
+  game.bulletCooldown = 8;
   game.bullets.push({
     x: game.player.x + game.player.w / 2 - 2,
     y: game.player.y - 4,
-    w: 4,
-    h: 8,
-    speed: 6,
-    isLHS: isLHS,
-    alive: true,
+    w: 4, h: 10,
+    speed: 7, isLHS, alive: true,
   });
 }
 
@@ -339,20 +471,19 @@ function triggerEvent() {
       let inv = spawnInvader();
       inv.tenor = randEl(['T/N','S/N']);
       inv.size = randInt(10, 40) * 50;
-      inv.speed *= 1.5;
+      inv.speed *= 1.3;
       game.invaders.push(inv);
     }
   }
-
   if (evt.effect === 'split') {
+    let clones = [];
     game.invaders.forEach(inv => {
-      if (inv.alive && Math.random() < 0.5) {
-        let clone = { ...inv, x: inv.x + randInt(-20, 20), isLHS: !inv.isLHS };
-        game.invaders.push(clone);
+      if (inv.alive && Math.random() < 0.4) {
+        clones.push({ ...inv, x: inv.x + randInt(-20, 20), isLHS: !inv.isLHS });
       }
     });
+    game.invaders.push(...clones);
   }
-
   if (evt.effect === 'shift') {
     if (evt.name.includes('LDN')) game.sessionCity = 'LONDON';
     else if (evt.name.includes('NY')) game.sessionCity = 'NEW YORK';
@@ -363,11 +494,11 @@ function triggerEvent() {
 function addParticles(x, y, count, good) {
   for (let i = 0; i < count; i++) {
     game.particles.push({
-      x: x, y: y,
-      vx: (Math.random() - 0.5) * 4,
-      vy: (Math.random() - 0.5) * 4,
-      life: 20 + Math.random() * 20,
-      good: good,
+      x, y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5,
+      life: 20 + Math.random() * 15,
+      good,
     });
   }
 }
@@ -375,31 +506,35 @@ function addParticles(x, y, count, good) {
 function resetGame() {
   game.state = 'playing';
   game.score = 0;
-  game.lives = 3;
+  game.lives = 5;
   game.wave = 1;
   game.streak = 0;
   game.bestStreak = 0;
+  game.missed = 0;
   game.invaders = [];
   game.bullets = [];
   game.particles = [];
+  game.floatTexts = [];
   game.event = null;
   game.eventTimer = 0;
   game.spawnTimer = 0;
   game.waveKills = 0;
-  game.waveTarget = 8;
-  game.player.x = 200;
+  game.waveTarget = 10;
+  game.player.x = canvas.width / 2 - 20;
+  game.player.y = canvas.height - 50;
   game.sessionCity = 'SYDNEY';
-  game.flashMsg = '';
-  game.flashTimer = 0;
+  game.flashMsg = 'WAVE 1 - SHORT DATES';
+  game.flashTimer = 90;
+  game.bulletCooldown = 0;
 }
 
 // ---- UPDATE ----
 function update() {
-  if (game.state === 'title') {
-    game.titleAnim++;
-    return;
-  }
+  if (game.state === 'title') { game.titleAnim++; return; }
   if (game.state !== 'playing') return;
+
+  // Cooldown
+  if (game.bulletCooldown > 0) game.bulletCooldown--;
 
   // Player movement
   if (game.keys.left) game.player.x -= game.player.speed;
@@ -408,8 +543,8 @@ function update() {
 
   // Spawn
   game.spawnTimer++;
-  let rate = Math.max(30, game.spawnRate - game.wave * 4);
-  if (game.event && (game.event.effect === 'flood' || game.event.effect === 'boss')) rate = 20;
+  let rate = Math.max(40, game.spawnRate - game.wave * 3);
+  if (game.event && (game.event.effect === 'flood' || game.event.effect === 'boss')) rate = 25;
   if (game.spawnTimer >= rate) {
     game.spawnTimer = 0;
     game.invaders.push(spawnInvader());
@@ -421,49 +556,52 @@ function update() {
     if (game.eventTimer <= 0) game.event = null;
   }
 
-  // Random event trigger
-  if (!game.event && Math.random() < 0.002 + game.wave * 0.001) {
+  // Random event
+  if (!game.event && Math.random() < 0.0015 + game.wave * 0.0008) {
     triggerEvent();
   }
 
-  // Flash timer
   if (game.flashTimer > 0) game.flashTimer--;
 
-  // Update bullets
+  // Bullets
   game.bullets.forEach(b => {
     if (!b.alive) return;
     b.y -= b.speed;
     if (b.y < -10) b.alive = false;
   });
 
-  // Update invaders
+  // Invaders
   game.invaders.forEach(inv => {
     if (!inv.alive) return;
     inv.y += inv.speed;
     if (inv.flash > 0) inv.flash--;
 
-    // Hit player
+    // Direct collision with player = lose a life
     if (inv.y + inv.h > game.player.y && inv.y < game.player.y + game.player.h &&
         inv.x + inv.w > game.player.x && inv.x < game.player.x + game.player.w) {
       inv.alive = false;
       game.lives--;
       game.streak = 0;
-      game.flashMsg = 'FILLED!';
+      game.flashMsg = 'FILLED! OUCH!';
       game.flashTimer = 60;
-      addParticles(game.player.x + game.player.w/2, game.player.y, 10, false);
+      addParticles(game.player.x + game.player.w/2, game.player.y, 12, false);
       if (game.lives <= 0) {
         game.state = 'gameover';
         if (game.score > game.highScore) {
           game.highScore = game.score;
-          localStorage.setItem('fxhedgeboy_hi', game.highScore.toString());
+          localStorage.setItem('stirboy_hi', game.highScore.toString());
         }
       }
+      return;
     }
 
-    // Off screen
+    // Off screen = missed, but NO life lost — just a taunt
     if (inv.y > canvas.height + 10) {
       inv.alive = false;
+      game.missed++;
       game.streak = 0;
+      let taunt = randEl(MISS_TAUNTS);
+      addFloatText(canvas.width / 2, canvas.height - 60, taunt, false);
     }
   });
 
@@ -476,9 +614,8 @@ function update() {
           b.y < inv.y + inv.h && b.y + b.h > inv.y) {
         b.alive = false;
 
-        // Check LHS/RHS match
         if (b.isLHS === inv.isLHS) {
-          // Correct hedge!
+          // Correct hedge
           inv.hp--;
           if (inv.hp <= 0) {
             inv.alive = false;
@@ -489,263 +626,282 @@ function update() {
             game.score += pts;
             game.waveKills++;
             addParticles(inv.x + inv.w/2, inv.y + inv.h/2, 8, true);
+            addFloatText(inv.x + inv.w/2, inv.y, '+' + pts, true);
 
             if (game.waveKills >= game.waveTarget) {
               game.wave++;
               game.waveKills = 0;
-              game.waveTarget = 8 + game.wave * 2;
+              game.waveTarget = 10 + game.wave * 2;
               game.flashMsg = 'WAVE ' + game.wave + ' - ' + getWaveConfig().label;
-              game.flashTimer = 90;
+              game.flashTimer = 100;
             }
           } else {
             inv.flash = 8;
             addParticles(b.x, b.y, 4, true);
           }
         } else {
-          // Wrong side! Penalty
-          game.score = Math.max(0, game.score - Math.floor(inv.size / 20));
+          // Wrong side
+          let penalty = Math.floor(inv.size / 20);
+          game.score = Math.max(0, game.score - penalty);
           game.streak = 0;
           inv.flash = 15;
           game.flashMsg = 'WRONG SIDE!';
-          game.flashTimer = 45;
+          game.flashTimer = 50;
           addParticles(inv.x + inv.w/2, inv.y + inv.h/2, 6, false);
+          addFloatText(inv.x + inv.w/2, inv.y, '-' + penalty, false);
         }
       }
     });
   });
 
-  // Update particles
-  game.particles.forEach(p => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-  });
+  // Particles
+  game.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+
+  // Float texts
+  game.floatTexts.forEach(f => { f.y -= 0.8; f.life--; });
 
   // Cleanup
   game.invaders = game.invaders.filter(i => i.alive);
   game.bullets = game.bullets.filter(b => b.alive);
   game.particles = game.particles.filter(p => p.life > 0);
+  game.floatTexts = game.floatTexts.filter(f => f.life > 0);
 }
 
 // ---- DRAW ----
-function drawPixelText(text, x, y, size, color) {
-  ctx.fillStyle = color || GB.darkest;
-  ctx.font = size + 'px "Press Start 2P"';
-  ctx.fillText(text, x, y);
-}
-
 function drawPlayer() {
   let p = game.player;
+  let s = canvas.width / 400; // scale factor
   ctx.fillStyle = GB.darkest;
-  // Desk terminal shape
-  ctx.fillRect(p.x + 4, p.y, p.w - 8, p.h);
-  ctx.fillRect(p.x, p.y + 4, p.w, p.h - 4);
-  // Screen
+  ctx.fillRect(p.x + 4*s, p.y, p.w - 8*s, p.h);
+  ctx.fillRect(p.x, p.y + 4*s, p.w, p.h - 4*s);
   ctx.fillStyle = GB.light;
-  ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 6);
-  // Antenna
+  ctx.fillRect(p.x + 6*s, p.y + 2*s, p.w - 12*s, 6*s);
   ctx.fillStyle = GB.darkest;
-  ctx.fillRect(p.x + p.w/2 - 1, p.y - 6, 2, 6);
-  ctx.fillRect(p.x + p.w/2 - 4, p.y - 6, 8, 2);
+  ctx.fillRect(p.x + p.w/2 - 1*s, p.y - 8*s, 2*s, 8*s);
+  ctx.fillRect(p.x + p.w/2 - 5*s, p.y - 8*s, 10*s, 2*s);
 }
 
 function drawInvader(inv) {
-  let col = inv.flash > 0 ? GB.lightest : GB.darkest;
-  if (inv.flash > 0 && inv.flash % 2 === 0) col = GB.light;
+  let col = inv.flash > 0 ? (inv.flash % 2 === 0 ? GB.light : GB.lightest) : GB.darkest;
+  let s = canvas.width / 400;
 
   // Body
   ctx.fillStyle = col;
   ctx.fillRect(inv.x + 2, inv.y + 2, inv.w - 4, inv.h - 4);
-
-  // Border
   ctx.strokeStyle = col;
   ctx.lineWidth = 1;
-  ctx.strokeRect(inv.x + 1, inv.y + 1, inv.w - 2, inv.h - 2);
+  ctx.strokeRect(inv.x, inv.y, inv.w, inv.h);
 
-  // Side indicator
-  let sideCol = inv.isLHS ? GB.dark : GB.lightest;
-  ctx.fillStyle = sideCol;
-  ctx.fillRect(inv.x + 3, inv.y + 3, 4, inv.h - 6);
+  // Side stripe
+  let stripeCol = inv.isLHS ? GB.dark : GB.lightest;
+  ctx.fillStyle = stripeCol;
+  ctx.fillRect(inv.x + 3, inv.y + 3, 5, inv.h - 6);
 
-  // Text
-  ctx.fillStyle = inv.flash > 0 ? GB.darkest : GB.bg;
-  ctx.font = '5px "Press Start 2P"';
-  ctx.fillText(inv.isLHS ? 'L' : 'R', inv.x + 4, inv.y + 11);
-  ctx.fillText(inv.ccy, inv.x + 12, inv.y + 11);
-  ctx.font = '4px "Press Start 2P"';
-  ctx.fillText(inv.tenor + ' ' + formatSize(inv.size), inv.x + 12, inv.y + 21);
+  // Text - "LHS T/N EUR 500mio" format
+  let textCol = inv.flash > 0 ? GB.darkest : GB.bg;
+  ctx.fillStyle = textCol;
+
+  let fontSize = Math.max(5, Math.floor(6 * s));
+  ctx.font = fontSize + 'px "Press Start 2P"';
+  let side = inv.isLHS ? 'LHS' : 'RHS';
+  ctx.fillText(side + ' ' + inv.ccy, inv.x + 10, inv.y + 13*s);
+
+  let smallSize = Math.max(4, Math.floor(5 * s));
+  ctx.font = smallSize + 'px "Press Start 2P"';
+  ctx.fillText(inv.tenor + ' ' + formatSize(inv.size), inv.x + 10, inv.y + 24*s);
 }
 
 function drawBullet(b) {
   ctx.fillStyle = GB.darkest;
   ctx.fillRect(b.x, b.y, b.w, b.h);
-  // LHS/RHS indicator
-  ctx.fillStyle = GB.light;
-  if (b.isLHS) {
-    ctx.fillRect(b.x, b.y, 2, b.h);
-  } else {
-    ctx.fillRect(b.x + 2, b.y, 2, b.h);
-  }
+  ctx.fillStyle = b.isLHS ? GB.dark : GB.lightest;
+  ctx.fillRect(b.x + (b.isLHS ? 0 : 2), b.y, 2, b.h);
 }
 
 function drawHUD() {
+  let s = canvas.width / 400;
+  let fontSize = Math.max(5, Math.floor(6 * s));
+
   // P&L
-  let pnl = game.score >= 0 ? '+' + (game.score / 1000).toFixed(1) + 'mio' : (game.score / 1000).toFixed(1) + 'mio';
-  drawPixelText('P&L:' + pnl, 4, 12, 6, GB.darkest);
+  let pnl = '+' + (game.score / 1000).toFixed(1) + 'mio';
+  ctx.fillStyle = GB.darkest;
+  ctx.font = fontSize + 'px "Press Start 2P"';
+  ctx.fillText('P&L:' + pnl, 4, 14*s);
 
   // Lives
   for (let i = 0; i < game.lives; i++) {
     ctx.fillStyle = GB.darkest;
-    ctx.fillRect(canvas.width - 14 - i * 14, 4, 10, 8);
+    ctx.fillRect(canvas.width - 14*s - i * 14*s, 4, 10*s, 8*s);
   }
 
   // Wave
-  drawPixelText('W' + game.wave, canvas.width - 36, 20, 5, GB.dark);
+  ctx.fillStyle = GB.dark;
+  ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
+  ctx.fillText('W' + game.wave, canvas.width - 40*s, 22*s);
 
   // Streak
   if (game.streak > 1) {
-    drawPixelText('x' + game.streak, 4, 24, 5, GB.dark);
+    ctx.fillText('x' + game.streak + ' STREAK', 4, 26*s);
+  }
+
+  // Missed count
+  if (game.missed > 0) {
+    ctx.fillText('MISSED:' + game.missed, canvas.width / 2 - 30*s, 22*s);
   }
 
   // Session city
-  drawPixelText(game.sessionCity, canvas.width / 2 - 20, 12, 5, GB.dark);
+  ctx.fillStyle = GB.dark;
+  ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
+  let cityW = ctx.measureText(game.sessionCity).width;
+  ctx.fillText(game.sessionCity, (canvas.width - cityW) / 2, 12*s);
+
+  // Float texts
+  game.floatTexts.forEach(f => {
+    ctx.globalAlpha = Math.min(1, f.life / 20);
+    ctx.fillStyle = f.good ? GB.darkest : GB.dark;
+    ctx.font = Math.floor(6*s) + 'px "Press Start 2P"';
+    let tw = ctx.measureText(f.text).width;
+    ctx.fillText(f.text, f.x - tw/2, f.y);
+    ctx.globalAlpha = 1;
+  });
 
   // Event banner
   if (game.flashTimer > 0 && game.flashMsg) {
-    let alpha = game.flashTimer > 20 ? 1 : game.flashTimer / 20;
+    let alpha = game.flashTimer > 25 ? 1 : game.flashTimer / 25;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = GB.darkest;
-    ctx.fillRect(0, canvas.height / 2 - 16, canvas.width, 32);
+    let bannerH = 36 * s;
+    ctx.fillRect(0, canvas.height / 2 - bannerH/2, canvas.width, bannerH);
     ctx.fillStyle = GB.lightest;
-    ctx.font = '8px "Press Start 2P"';
+    ctx.font = Math.floor(8*s) + 'px "Press Start 2P"';
     let tw = ctx.measureText(game.flashMsg).width;
-    ctx.fillText(game.flashMsg, (canvas.width - tw) / 2, canvas.height / 2 + 3);
+    ctx.fillText(game.flashMsg, (canvas.width - tw) / 2, canvas.height / 2 + 4*s);
     ctx.globalAlpha = 1;
   }
 
-  // Active event indicator
+  // Event progress bar
   if (game.event) {
     ctx.fillStyle = GB.dark;
-    ctx.fillRect(0, canvas.height - 8, canvas.width * (game.eventTimer / game.event.duration), 3);
+    ctx.fillRect(0, canvas.height - 6, canvas.width * (game.eventTimer / game.event.duration), 4);
   }
 }
 
 function drawTitle() {
   ctx.fillStyle = GB.bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  let bob = Math.sin(game.titleAnim * 0.05) * 4;
+  let s = canvas.width / 400;
+  let bob = Math.sin(game.titleAnim * 0.05) * 4 * s;
 
   ctx.fillStyle = GB.darkest;
-  ctx.font = '16px "Press Start 2P"';
-  let t1 = 'FX';
+  ctx.font = Math.floor(14*s) + 'px "Press Start 2P"';
+  let t1 = 'STIRBOY';
   let w1 = ctx.measureText(t1).width;
-  ctx.fillText(t1, (canvas.width - w1) / 2, 80 + bob);
+  ctx.fillText(t1, (canvas.width - w1) / 2, 70*s + bob);
 
-  ctx.font = '12px "Press Start 2P"';
-  let t2 = 'HEDGEBOY';
+  ctx.font = Math.floor(10*s) + 'px "Press Start 2P"';
+  let t2 = 'TOMNEXTER';
   let w2 = ctx.measureText(t2).width;
-  ctx.fillText(t2, (canvas.width - w2) / 2, 105 + bob);
+  ctx.fillText(t2, (canvas.width - w2) / 2, 92*s + bob);
 
-  // Animated invaders on title
+  // Animated ccys
   let time = game.titleAnim * 0.03;
+  let ccyW = Math.floor(canvas.width / (CCYS.length + 1));
   CCYS.forEach((ccy, i) => {
-    let ix = 60 + i * 42;
-    let iy = 150 + Math.sin(time + i * 0.8) * 10;
+    let ix = ccyW * (i + 0.5);
+    let iy = 130*s + Math.sin(time + i * 0.8) * 10*s;
     ctx.fillStyle = GB.darkest;
-    ctx.fillRect(ix, iy, 36, 18);
+    ctx.fillRect(ix - 16*s, iy, 32*s, 16*s);
     ctx.fillStyle = GB.bg;
-    ctx.font = '5px "Press Start 2P"';
-    ctx.fillText(ccy, ix + 4, iy + 12);
+    ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
+    ctx.fillText(ccy, ix - 12*s, iy + 11*s);
   });
 
   ctx.fillStyle = GB.dark;
-  ctx.font = '6px "Press Start 2P"';
   let blink = Math.floor(game.titleAnim / 30) % 2;
   if (blink) {
-    let t3 = 'PRESS START';
+    ctx.font = Math.floor(7*s) + 'px "Press Start 2P"';
+    let t3 = 'TAP TO START';
     let w3 = ctx.measureText(t3).width;
-    ctx.fillText(t3, (canvas.width - w3) / 2, 220);
+    ctx.fillText(t3, (canvas.width - w3) / 2, 200*s);
   }
 
-  ctx.font = '5px "Press Start 2P"';
-  ctx.fillStyle = GB.dark;
-  let t4 = 'LHS=SELL  RHS=BUY';
-  let w4 = ctx.measureText(t4).width;
-  ctx.fillText(t4, (canvas.width - w4) / 2, 260);
-
-  let t5 = 'HEDGE THE FLOW';
-  let w5 = ctx.measureText(t5).width;
-  ctx.fillText(t5, (canvas.width - w5) / 2, 275);
-
-  let t6 = 'MATCH THE SIDE OR LOSE P&L';
-  let w6 = ctx.measureText(t6).width;
-  ctx.fillText(t6, (canvas.width - w6) / 2, 290);
+  ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
+  let instructions = [
+    'LHS = SELL    RHS = BUY',
+    'MATCH THE SIDE ON EACH',
+    'PRICE REQUEST TO HEDGE',
+    '',
+    'WRONG SIDE = LOSE P&L',
+    'DIRECT HIT = LOSE A LIFE',
+  ];
+  instructions.forEach((line, i) => {
+    let wl = ctx.measureText(line).width;
+    ctx.fillText(line, (canvas.width - wl) / 2, (240 + i * 14)*s);
+  });
 
   if (game.highScore > 0) {
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
     let t7 = 'BEST: +' + (game.highScore / 1000).toFixed(1) + 'mio';
     let w7 = ctx.measureText(t7).width;
-    ctx.fillText(t7, (canvas.width - w7) / 2, 320);
+    ctx.fillText(t7, (canvas.width - w7) / 2, 340*s);
   }
 }
 
 function drawGameOver() {
+  let s = canvas.width / 400;
+  let boxW = canvas.width * 0.8;
+  let boxH = 180 * s;
+  let boxX = (canvas.width - boxW) / 2;
+  let boxY = canvas.height / 2 - boxH / 2;
+
   ctx.fillStyle = GB.darkest;
-  ctx.fillRect(40, 100, canvas.width - 80, 160);
-  ctx.fillStyle = GB.bg;
+  ctx.fillRect(boxX, boxY, boxW, boxH);
   ctx.strokeStyle = GB.light;
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 102, canvas.width - 84, 156);
+  ctx.strokeRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4);
 
   ctx.fillStyle = GB.lightest;
-  ctx.font = '10px "Press Start 2P"';
-  let t1 = 'BLOWN UP';
+  ctx.font = Math.floor(10*s) + 'px "Press Start 2P"';
+  let t1 = 'BLOWN UP!';
   let w1 = ctx.measureText(t1).width;
-  ctx.fillText(t1, (canvas.width - w1) / 2, 130);
+  ctx.fillText(t1, (canvas.width - w1) / 2, boxY + 30*s);
 
-  ctx.font = '7px "Press Start 2P"';
+  ctx.font = Math.floor(7*s) + 'px "Press Start 2P"';
   let pnl = '+' + (game.score / 1000).toFixed(1) + 'mio';
-  let t2 = 'FINAL P&L: ' + pnl;
-  let w2 = ctx.measureText(t2).width;
-  ctx.fillText(t2, (canvas.width - w2) / 2, 160);
-
-  ctx.font = '6px "Press Start 2P"';
-  let t3 = 'WAVE: ' + game.wave;
-  let w3 = ctx.measureText(t3).width;
-  ctx.fillText(t3, (canvas.width - w3) / 2, 180);
-
-  let t4 = 'BEST STREAK: ' + game.bestStreak;
-  let w4 = ctx.measureText(t4).width;
-  ctx.fillText(t4, (canvas.width - w4) / 2, 196);
+  let lines = [
+    'FINAL P&L: ' + pnl,
+    'WAVE: ' + game.wave,
+    'BEST STREAK: ' + game.bestStreak,
+    'MISSED: ' + game.missed,
+  ];
+  lines.forEach((line, i) => {
+    let wl = ctx.measureText(line).width;
+    ctx.fillText(line, (canvas.width - wl) / 2, boxY + (55 + i * 20)*s);
+  });
 
   if (game.score >= game.highScore && game.score > 0) {
-    ctx.font = '6px "Press Start 2P"';
+    ctx.font = Math.floor(6*s) + 'px "Press Start 2P"';
     let t5 = 'NEW HIGH SCORE!';
     let w5 = ctx.measureText(t5).width;
-    ctx.fillText(t5, (canvas.width - w5) / 2, 216);
+    ctx.fillText(t5, (canvas.width - w5) / 2, boxY + 140*s);
   }
 
   let blink = Math.floor(Date.now() / 500) % 2;
   if (blink) {
-    ctx.font = '5px "Press Start 2P"';
-    let t6 = 'PRESS START';
+    ctx.font = Math.floor(5*s) + 'px "Press Start 2P"';
+    let t6 = 'TAP TO CONTINUE';
     let w6 = ctx.measureText(t6).width;
-    ctx.fillText(t6, (canvas.width - w6) / 2, 240);
+    ctx.fillText(t6, (canvas.width - w6) / 2, boxY + 165*s);
   }
 }
 
 function draw() {
-  // Clear with GB background
   ctx.fillStyle = GB.bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (game.state === 'title') {
-    drawTitle();
-    return;
-  }
+  if (game.state === 'title') { drawTitle(); return; }
 
-  // Screen shake during events
+  // Screen shake
   let shakeX = 0, shakeY = 0;
   if (game.event && (game.event.effect === 'chaos' || game.event.effect === 'boss')) {
     shakeX = (Math.random() - 0.5) * 4;
@@ -754,26 +910,17 @@ function draw() {
   ctx.save();
   ctx.translate(shakeX, shakeY);
 
-  // Draw invaders
   game.invaders.forEach(inv => { if (inv.alive) drawInvader(inv); });
-
-  // Draw bullets
   game.bullets.forEach(b => { if (b.alive) drawBullet(b); });
-
-  // Draw particles
   game.particles.forEach(p => {
     ctx.fillStyle = p.good ? GB.darkest : GB.dark;
-    ctx.globalAlpha = p.life / 40;
+    ctx.globalAlpha = p.life / 35;
     ctx.fillRect(p.x, p.y, 3, 3);
     ctx.globalAlpha = 1;
   });
-
-  // Draw player
   drawPlayer();
-
   ctx.restore();
 
-  // HUD
   drawHUD();
 
   if (game.state === 'gameover') drawGameOver();
@@ -783,7 +930,8 @@ function draw() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = 1;
     ctx.fillStyle = GB.lightest;
-    ctx.font = '12px "Press Start 2P"';
+    let s = canvas.width / 400;
+    ctx.font = Math.floor(12*s) + 'px "Press Start 2P"';
     let tp = 'PAUSED';
     let wp = ctx.measureText(tp).width;
     ctx.fillText(tp, (canvas.width - wp) / 2, canvas.height / 2);
@@ -802,68 +950,74 @@ function gameLoop() {
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = true;
   if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = true;
-  if (e.key === 'z' || e.key === ',') fireBullet(true);  // LHS
-  if (e.key === 'x' || e.key === '.') fireBullet(false);  // RHS
+  if (e.key === 'z' || e.key === ',') fireBullet(true);
+  if (e.key === 'x' || e.key === '.') fireBullet(false);
   if (e.key === 'Enter' || e.key === ' ') {
     if (game.state === 'title') resetGame();
-    else if (game.state === 'gameover') { game.state = 'title'; }
-    else if (game.state === 'paused') game.state = 'playing';
+    else if (game.state === 'gameover') game.state = 'title';
   }
   if (e.key === 'p' || e.key === 'Escape') {
     if (game.state === 'playing') game.state = 'paused';
     else if (game.state === 'paused') game.state = 'playing';
   }
 });
-
 document.addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = false;
   if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = false;
 });
 
-// D-pad buttons
-function setupBtn(id, keyDown, keyUp) {
+// Touch / button controls
+function setupHold(id, down, up) {
   let el = document.getElementById(id);
   if (!el) return;
-  const start = (e) => { e.preventDefault(); keyDown(); };
-  const end = (e) => { e.preventDefault(); keyUp(); };
-  el.addEventListener('touchstart', start, { passive: false });
-  el.addEventListener('touchend', end, { passive: false });
-  el.addEventListener('mousedown', start);
-  el.addEventListener('mouseup', end);
-  el.addEventListener('mouseleave', end);
+  let holding = false;
+  const onDown = (e) => { e.preventDefault(); holding = true; down(); };
+  const onUp = (e) => { e.preventDefault(); holding = false; up(); };
+  el.addEventListener('touchstart', onDown, { passive: false });
+  el.addEventListener('touchend', onUp, { passive: false });
+  el.addEventListener('touchcancel', onUp, { passive: false });
+  el.addEventListener('mousedown', onDown);
+  el.addEventListener('mouseup', onUp);
+  el.addEventListener('mouseleave', (e) => { if (holding) { holding = false; up(); } });
 }
 
-setupBtn('dLeft', () => game.keys.left = true, () => game.keys.left = false);
-setupBtn('dRight', () => game.keys.right = true, () => game.keys.right = false);
-
-// Action buttons
-function setupFire(id, isLHS) {
+function setupTap(id, fn) {
   let el = document.getElementById(id);
   if (!el) return;
-  const fire = (e) => { e.preventDefault(); fireBullet(isLHS); };
-  el.addEventListener('touchstart', fire, { passive: false });
-  el.addEventListener('mousedown', fire);
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
+  el.addEventListener('mousedown', (e) => { e.preventDefault(); fn(); });
 }
 
-setupFire('btnLHS', true);
-setupFire('btnRHS', false);
+setupHold('dLeft', () => game.keys.left = true, () => game.keys.left = false);
+setupHold('dRight', () => game.keys.right = true, () => game.keys.right = false);
+setupTap('btnLHS', () => fireBullet(true));
+setupTap('btnRHS', () => fireBullet(false));
 
-// Start/Pause
 document.getElementById('btnStart').addEventListener('click', () => {
   if (game.state === 'title') resetGame();
   else if (game.state === 'gameover') game.state = 'title';
   else if (game.state === 'paused') game.state = 'playing';
 });
-
 document.getElementById('btnPause').addEventListener('click', () => {
   if (game.state === 'playing') game.state = 'paused';
   else if (game.state === 'paused') game.state = 'playing';
 });
 
-// Prevent scrolling on touch
+// Tap canvas to start
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+}, { passive: false });
+canvas.addEventListener('click', () => {
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+});
+
 document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
-// ---- START ----
+// Init
+resizeCanvas();
 gameLoop();
 </script>
 </body>
