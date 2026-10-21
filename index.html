@@ -234,52 +234,68 @@ class TitleScene extends Phaser.Scene {
     // Scanline overlay
     this.add.tileSprite(0, 0, W, H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.5);
 
-    let t1 = this.add.text(W/2, H*0.10, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:'26px', color:GBS.darkest }).setOrigin(0.5);
-    let t2 = this.add.text(W/2, H*0.17, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:'16px', color:GBS.dark }).setOrigin(0.5);
-    this.tweens.add({ targets: [t1,t2], y: '+=5', duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // Use cursor-based layout: track y position as we go
+    let y = 14;
+    let lh = Math.min(18, H * 0.035); // line height scales with screen
+
+    let t1 = this.add.text(W/2, y, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:'22px', color:GBS.darkest }).setOrigin(0.5, 0);
+    y += 32;
+    let t2 = this.add.text(W/2, y, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.dark }).setOrigin(0.5, 0);
+    y += 24;
+    this.tweens.add({ targets: [t1,t2], y: '+=4', duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     // Ccys parade
-    let gap = W / (CCYS.length + 1);
+    y += 6;
+    let ccyW = Math.min(40, (W - 20) / CCYS.length - 4);
+    let totalCcyW = CCYS.length * (ccyW + 4) - 4;
+    let ccyStartX = (W - totalCcyW) / 2 + ccyW/2;
     CCYS.forEach((ccy, i) => {
-      let bx = this.add.rectangle(gap*(i+1), H*0.27, 44, 22, GB.darkest);
-      let tx = this.add.text(gap*(i+1), H*0.27, ccy, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.bg }).setOrigin(0.5);
-      this.tweens.add({ targets: [bx,tx], y: '+=10', duration: 600, yoyo:true, repeat:-1, delay: i*120, ease:'Sine.easeInOut' });
+      let cx = ccyStartX + i * (ccyW + 4);
+      let bx = this.add.rectangle(cx, y, ccyW, 20, GB.darkest);
+      let tx = this.add.text(cx, y, ccy, { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.bg }).setOrigin(0.5);
+      this.tweens.add({ targets: [bx,tx], y: '+=6', duration: 600, yoyo:true, repeat:-1, delay: i*100, ease:'Sine.easeInOut' });
     });
+    y += 30;
 
     // Player name display
     if (PLAYER_NAME) {
-      this.add.text(W/2, H*0.35, 'TRADER: ' + PLAYER_NAME, { fontFamily:'"Press Start 2P"', fontSize:'11px', color:GBS.darkest }).setOrigin(0.5);
-      let chg = this.add.text(W/2, H*0.39, '[TAP HERE TO CHANGE]', { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5).setInteractive();
+      this.add.text(W/2, y, 'TRADER: ' + PLAYER_NAME, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.darkest }).setOrigin(0.5, 0);
+      y += 16;
+      let chg = this.add.text(W/2, y, '[TAP TO CHANGE]', { fontFamily:'"Press Start 2P"', fontSize:'6px', color:GBS.dark }).setOrigin(0.5, 0).setInteractive();
       chg.on('pointerdown', () => showNameEntry());
+      y += 14;
     }
 
-    let blink = this.add.text(W/2, H*0.46, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.darkest }).setOrigin(0.5);
+    // TAP TO START
+    y += 6;
+    let blink = this.add.text(W/2, y, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:'12px', color:GBS.darkest }).setOrigin(0.5, 0);
     this.tweens.add({ targets: blink, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
+    y += 24;
 
-    let lines = [
-      'SHOOT TRADES WITH',
-      'LHS OR RHS',
-      '',
+    // Instructions — compact
+    let instLines = [
+      'SHOOT TRADES: LHS / RHS',
       'BIG SIZES = MORE HP',
       'AXED PAYER = POWERUP!',
-      '',
-      '☠ AVOID TOXIC TRADES',
-      'DURING SQUEEZES!',
+      '☠ DODGE TOXIC TRADES!',
     ];
-    lines.forEach((l,i) => {
-      this.add.text(W/2, H*0.54 + i*18, l, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.dark }).setOrigin(0.5);
+    instLines.forEach((l) => {
+      this.add.text(W/2, y, l, { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5, 0);
+      y += lh;
     });
 
-    // High score
+    // High score — anchored to bottom
     let hi = 0; try { hi = parseInt(localStorage.getItem('stirboy_hi') || '0'); } catch(e){}
     if (hi > 0) {
-      this.add.text(W/2, H*0.90, 'BEST: $' + hi.toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.darkest }).setOrigin(0.5);
+      this.add.text(W/2, H - 28, 'BEST: $' + hi.toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.darkest }).setOrigin(0.5);
     }
-    this.add.text(W/2, H*0.95, 'v2 PHASER', { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5);
+    this.add.text(W/2, H - 12, 'v2 PHASER', { fontFamily:'"Press Start 2P"', fontSize:'6px', color:GBS.dark }).setOrigin(0.5);
 
+    // Tap-to-start zone (avoid name-change link)
+    let nameZoneTop = PLAYER_NAME ? 76 + 30 : 0;
+    let nameZoneBot = PLAYER_NAME ? nameZoneTop + 30 : 0;
     this.input.once('pointerdown', (p) => {
-      // Don't start if they tapped the change-name link area
-      if (PLAYER_NAME && p.y > H*0.37 && p.y < H*0.42) return;
+      if (PLAYER_NAME && p.y > nameZoneTop && p.y < nameZoneBot) return;
       this.startGame();
     });
     this.input.keyboard.once('keydown-ENTER', () => this.startGame());
@@ -906,9 +922,9 @@ class GameOverScene extends Phaser.Scene {
     // Panel
     this.add.rectangle(W/2, H/2, W*0.94, H*0.88, GB.darkest).setStrokeStyle(3, GB.light);
 
-    let y = H*0.08;
-    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:'20px', color:GBS.lightest }).setOrigin(0.5);
-    y += 38;
+    let y = 20;
+    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:'18px', color:GBS.lightest }).setOrigin(0.5);
+    y += 32;
 
     if (data.name) {
       this.add.text(W/2, y, data.name + ' @ SYDNEY', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
@@ -943,7 +959,7 @@ class GameOverScene extends Phaser.Scene {
       this.tweens.add({ targets: nt, scale: { from: 1, to: 1.15 }, duration: 400, yoyo: true, repeat: -1 });
     }
 
-    let cont = this.add.text(W/2, H*0.90, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.lightest }).setOrigin(0.5);
+    let cont = this.add.text(W/2, H - 20, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.lightest }).setOrigin(0.5);
     this.tweens.add({ targets: cont, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
 
     this.input.once('pointerdown', () => this.scene.start('Title'));
