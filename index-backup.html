@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>STIRBoy Tomnexter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; overflow: hidden; }
+  body {
+    background: #3a3a5c;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Press Start 2P', monospace;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #gameboy {
+    background: linear-gradient(145deg, #c8c8c8 0%, #a8a8a8 50%, #989898 100%);
+    border-radius: 16px 16px 80px 16px;
+    padding: 8px 8px 10px;
+    width: 100%; height: 100%;
+    max-width: 500px; max-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center;
+    box-shadow: 4px 4px 0 #666, inset 0 1px 0 rgba(255,255,255,0.3);
+    position: relative;
+  }
+
+  .top-brand { color: #6a6a8a; font-size: 7px; letter-spacing: 3px; margin-bottom: 2px; }
+
+  #screen-bezel {
+    background: #4a4a6a; border-radius: 8px; padding: 5px 5px 3px;
+    width: 100%; flex: 1; display: flex; flex-direction: column; min-height: 0;
+  }
+  .screen-label { color: #8888aa; font-size: 5px; margin-bottom: 2px; letter-spacing: 2px; display: flex; justify-content: space-between; }
+  .screen-label .dot { width: 6px; height: 6px; background: #c03030; border-radius: 50%; display: inline-block; }
+  #gameCanvas { width: 100%; flex: 1; display: block; background: #9bbc0f; border-radius: 4px; image-rendering: pixelated; }
+  .screen-bottom-label { color: #8888aa; font-size: 4px; text-align: center; margin-top: 1px; letter-spacing: 4px; }
+
+  /* Controls */
+  #controls {
+    width: 100%; display: flex; justify-content: space-between; align-items: stretch;
+    padding: 8px 4px 2px; flex-shrink: 0; gap: 6px;
+  }
+
+  .move-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .arrow-btn {
+    width: 72px; height: 80px;
+    background: #1a1a1a; border: 3px solid #444; border-radius: 14px;
+    color: #eee; font-size: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    box-shadow: 3px 4px 0 rgba(0,0,0,0.6);
+  }
+  .arrow-btn:active { background: #444; transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.4); }
+
+  .fire-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .fire-btn {
+    width: 80px; height: 80px;
+    border-radius: 14px; border: 3px solid rgba(255,255,255,0.3);
+    font-family: 'Press Start 2P', monospace; font-size: 12px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    text-align: center; line-height: 1.6; color: #fff;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 3px 4px 0 rgba(0,0,0,0.5);
+  }
+  .fire-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.4); }
+  .btn-lhs { background: #c02020; }
+  .btn-rhs { background: #1858b8; }
+
+  .meta-buttons { display: flex; gap: 20px; margin-top: 3px; flex-shrink: 0; }
+  .meta-btn {
+    width: 52px; height: 14px; border-radius: 7px; border: none;
+    background: #777; font-family: 'Press Start 2P', monospace;
+    font-size: 5px; color: #444; cursor: pointer; transform: rotate(-8deg);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .meta-btn:active { background: #999; }
+
+  .speaker { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 3px; transform: rotate(-25deg); }
+  .speaker-line { width: 24px; height: 2px; background: #888; border-radius: 1px; }
+
+  @media (max-height: 620px) {
+    #gameboy { padding: 4px 5px 6px; }
+    .arrow-btn { width: 58px; height: 64px; font-size: 28px; }
+    .fire-btn { width: 66px; height: 64px; font-size: 10px; }
+    #controls { padding: 5px 3px 1px; }
+  }
+  @media (min-height: 820px) {
+    .arrow-btn { width: 82px; height: 90px; font-size: 40px; }
+    .fire-btn { width: 90px; height: 90px; font-size: 13px; }
+    #controls { padding: 12px 6px 4px; }
+  }
+</style>
+</head>
+<body>
+<div id="gameboy">
+  <div class="top-brand">STIRBoy&trade; TOMNEXTER</div>
+  <div id="screen-bezel">
+    <div class="screen-label">
+      <span><span class="dot"></span> POWER</span>
+      <span>STIRBOY TOMNEXTER</span>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div class="screen-bottom-label">&copy; 2026 TOMNEXTER SYSTEMS</div>
+  </div>
+  <div class="meta-buttons">
+    <button class="meta-btn" id="btnPause">TALLY</button>
+    <button class="meta-btn" id="btnStart">START</button>
+  </div>
+  <div id="controls">
+    <div class="move-btns">
+      <button class="arrow-btn" id="dLeft">&#9664;</button>
+      <button class="arrow-btn" id="dRight">&#9654;</button>
+    </div>
+    <div class="fire-btns">
+      <button class="fire-btn btn-rhs" id="btnRHS">RHS</button>
+      <button class="fire-btn btn-lhs" id="btnLHS">LHS</button>
+    </div>
+  </div>
+  <div class="speaker"><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div></div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let dpr = 1;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // All drawing now in CSS-pixel coords
+  game.player.y = rect.height - 30;
+  game.player.x = Math.min(game.player.x, rect.width - game.player.w);
+  game.cw = rect.width;
+  game.ch = rect.height;
+}
+window.addEventListener('resize', resizeCanvas);
+
+const GB = { darkest: '#0f380f', dark: '#306230', light: '#8bac0f', lightest: '#9bbc0f', bg: '#9bbc0f' };
+const CCYS = ['AUD','NZD','JPY','CHF','EUR','CAD','GBP'];
+
+// All tenors mixed from the start; wave just increases speed
+const ALL_TENORS = [
+  { tenor: 'T/N', minSize: 500, maxSize: 2000 },
+  { tenor: 'S/N', minSize: 500, maxSize: 2000 },
+  { tenor: '1W', minSize: 500, maxSize: 2000 },
+  { tenor: '2W', minSize: 500, maxSize: 1000 },
+  { tenor: '1M', minSize: 500, maxSize: 1000 },
+  { tenor: '2M', minSize: 500, maxSize: 1000 },
+  { tenor: '3M', minSize: 200, maxSize: 500 },
+  { tenor: '6M', minSize: 200, maxSize: 500 },
+  { tenor: '9M', minSize: 50, maxSize: 500 },
+  { tenor: '1Y', minSize: 50, maxSize: 500 },
+  { tenor: '2Y', minSize: 50, maxSize: 500 },
+];
+
+const MISS_TAUNTS = [
+  'TOO SLOW!','THAT ONE GOT AWAY!','CLIENT NOT HAPPY!','SALES ON LINE 2...',
+  'BROKER IS LAUGHING','SHOULDA HEDGED THAT','TICKET DROPPED!',
+  'ASLEEP AT THE DESK?','WHERE WERE YOU?!','NICE ONE CHAMP...',
+];
+
+const EVENTS = [
+  { name: 'ES BALANCE EXPLODES!', effect: 'chaos', duration: 400 },
+  { name: 'TAX DAY!', effect: 'flood', duration: 300 },
+  { name: '$ FUNDING PUKE!', effect: 'accel', duration: 350 },
+  { name: 'DEC/JAN TURN NUKED!', effect: 'boss', duration: 500 },
+  { name: 'IMM FUNDING SQUEEZE!', effect: 'speedup', duration: 350 },
+  { name: 'STEEP CARRY!', effect: 'split', duration: 300 },
+  { name: 'REPO RATE SPIKES!', effect: 'flood', duration: 300 },
+  { name: 'XCCY BASIS BLOWS!', effect: 'chaos', duration: 400 },
+  { name: 'RBA O/N DRAIN!', effect: 'accel', duration: 300 },
+  { name: 'QUARTER-END CRUNCH!', effect: 'speedup', duration: 350 },
+];
+
+let game = {
+  state: 'title', score: 0, lives: 5, wave: 1,
+  streak: 0, bestStreak: 0, missed: 0,
+  player: { x: 150, y: 280, w: 52, h: 24, speed: 4 },
+  invaders: [], bullets: [], particles: [], floatTexts: [], powerups: [],
+  event: null, eventTimer: 0,
+  spawnTimer: 0, spawnRate: 140,
+  waveKills: 0, waveTarget: 8,
+  keys: { left: false, right: false },
+  highScore: parseInt(localStorage.getItem('stirboy_hi') || '0'),
+  flashTimer: 0, flashMsg: '', titleAnim: 0,
+  sessionCity: 'SYDNEY', bulletCooldown: 0,
+  multiShot: 0, // frames of multi-bullet powerup
+  tally: {}, // {ccy: {lhs: n, rhs: n}}
+  cw: 400, ch: 360,
+};
+
+function formatSize(mio) {
+  if (mio >= 1000) return (mio/1000).toFixed(1) + 'bn';
+  return mio + 'mio';
+}
+function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+function randEl(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function getWaveLabel() {
+  let labels = ['WARMING UP','FLOW PICKING UP','GETTING BUSY','HEAVY FLOW','CARNAGE','FULL SEND'];
+  return labels[Math.min(game.wave - 1, labels.length - 1)];
+}
+
+function hitsNeeded(size) {
+  if (size >= 1500) return 4;
+  if (size >= 1000) return 3;
+  if (size >= 500) return 2;
+  return 1;
+}
+
+function addFloatText(x, y, text, good) {
+  game.floatTexts.push({ x, y, text, good, life: 70 });
+}
+
+function spawnInvader() {
+  let tc = randEl(ALL_TENORS);
+  let ccy = randEl(CCYS);
+  let size = randInt(tc.minSize / 50, tc.maxSize / 50) * 50;
+  let baseSpeed = 0.8 + Math.random() * 0.4;
+  let speedMult = 1 + (game.wave - 1) * 0.08;
+  let evtMult = 1;
+  if (game.event) {
+    if (game.event.effect === 'speedup' || game.event.effect === 'chaos') evtMult = 1.4;
+    if (game.event.effect === 'accel') evtMult = 1.6;
+    if (game.event.effect === 'boss') evtMult = 1.5;
+  }
+  if (game.event && game.event.effect === 'accel') size = Math.min(size * 2, 2000);
+
+  let invW = Math.min(game.cw * 0.38, 150);
+  let x = randInt(4, game.cw - invW - 4);
+  let hp = hitsNeeded(size);
+
+  return {
+    x, y: -40, w: invW, h: 40,
+    speed: baseSpeed * speedMult * evtMult,
+    ccy, tenor: tc.tenor, size, alive: true, flash: 0, hp, maxHp: hp,
+  };
+}
+
+function spawnPowerup() {
+  let x = randInt(20, game.cw - 80);
+  game.powerups.push({
+    x, y: -30, w: Math.min(game.cw * 0.32, 130), h: 34,
+    speed: 0.7, alive: true, flash: 0,
+    label: 'AXED PAYER!',
+  });
+}
+
+function fireBullet(isLHS) {
+  if (game.state === 'title') { resetGame(); return; }
+  if (game.state === 'gameover') { game.state = 'title'; return; }
+  if (game.state !== 'playing') return;
+  if (game.bulletCooldown > 0) return;
+
+  let px = game.player.x + game.player.w / 2;
+  let py = game.player.y - 4;
+
+  if (game.multiShot > 0) {
+    game.bulletCooldown = 4;
+    // Triple shot
+    for (let offset of [-14, 0, 14]) {
+      game.bullets.push({ x: px + offset - 2, y: py, w: 5, h: 12, speed: 8, isLHS, alive: true });
+    }
+  } else {
+    game.bulletCooldown = 10;
+    game.bullets.push({ x: px - 2, y: py, w: 5, h: 12, speed: 7, isLHS, alive: true });
+  }
+}
+
+function triggerEvent() {
+  let evt = randEl(EVENTS);
+  game.event = { ...evt };
+  game.eventTimer = evt.duration;
+  game.flashMsg = evt.name;
+  game.flashTimer = 90;
+  if (evt.effect === 'flood') {
+    for (let i = 0; i < 5; i++) {
+      let inv = spawnInvader();
+      inv.speed *= 1.3;
+      inv.size = randInt(10, 40) * 50;
+      inv.hp = hitsNeeded(inv.size);
+      inv.maxHp = inv.hp;
+      game.invaders.push(inv);
+    }
+  }
+  if (evt.effect === 'split') {
+    let clones = [];
+    game.invaders.forEach(inv => { if (inv.alive && Math.random() < 0.3) clones.push({ ...inv, x: inv.x + randInt(-20, 20) }); });
+    game.invaders.push(...clones);
+  }
+  if (evt.effect === 'shift') {
+    if (evt.name.includes('LDN')) game.sessionCity = 'LONDON';
+    else if (evt.name.includes('NY')) game.sessionCity = 'NEW YORK';
+    else game.sessionCity = 'SYDNEY';
+  }
+}
+
+function addParticles(x, y, n, good) {
+  for (let i = 0; i < n; i++) game.particles.push({ x, y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 20+Math.random()*15, good });
+}
+
+function resetGame() {
+  game.state = 'playing'; game.score = 0; game.lives = 5; game.wave = 1;
+  game.streak = 0; game.bestStreak = 0; game.missed = 0;
+  game.invaders = []; game.bullets = []; game.particles = []; game.floatTexts = []; game.powerups = [];
+  game.event = null; game.eventTimer = 0; game.spawnTimer = 0;
+  game.waveKills = 0; game.waveTarget = 8;
+  game.player.x = game.cw / 2 - game.player.w / 2;
+  game.player.y = game.ch - 30;
+  game.sessionCity = 'SYDNEY';
+  game.flashMsg = 'WAVE 1 - WARMING UP'; game.flashTimer = 90;
+  game.bulletCooldown = 0; game.multiShot = 0;
+  game.tally = {};
+}
+
+// ---- UPDATE ----
+function update() {
+  if (game.state === 'title') { game.titleAnim++; return; }
+  if (game.state !== 'playing') return;
+
+  if (game.bulletCooldown > 0) game.bulletCooldown--;
+  if (game.multiShot > 0) game.multiShot--;
+
+  if (game.keys.left) game.player.x -= game.player.speed;
+  if (game.keys.right) game.player.x += game.player.speed;
+  game.player.x = Math.max(0, Math.min(game.cw - game.player.w, game.player.x));
+
+  // Spawn
+  game.spawnTimer++;
+  let rate = Math.max(60, game.spawnRate - game.wave * 4);
+  if (game.event && (game.event.effect === 'flood' || game.event.effect === 'boss')) rate = Math.floor(rate * 0.6);
+  if (game.spawnTimer >= rate) {
+    game.spawnTimer = 0;
+    game.invaders.push(spawnInvader());
+  }
+
+  // Powerup spawn - ~2% chance per spawn cycle
+  if (game.spawnTimer === 0 && Math.random() < 0.02 + game.wave * 0.005) spawnPowerup();
+
+  if (game.event) { game.eventTimer--; if (game.eventTimer <= 0) game.event = null; }
+  if (!game.event && Math.random() < 0.001 + game.wave * 0.0006) triggerEvent();
+  if (game.flashTimer > 0) game.flashTimer--;
+
+  // Bullets
+  game.bullets.forEach(b => { if (b.alive) { b.y -= b.speed; if (b.y < -12) b.alive = false; } });
+
+  // Powerups
+  game.powerups.forEach(pw => {
+    if (!pw.alive) return;
+    pw.y += pw.speed;
+    if (pw.flash > 0) pw.flash--;
+    if (pw.y > game.ch + 10) { pw.alive = false; return; }
+    // Check bullet hit
+    game.bullets.forEach(b => {
+      if (!b.alive || !pw.alive) return;
+      if (b.x + b.w > pw.x && b.x < pw.x + pw.w && b.y < pw.y + pw.h && b.y + b.h > pw.y) {
+        b.alive = false; pw.alive = false;
+        game.multiShot = 400; // ~6.5 seconds of triple-shot
+        game.flashMsg = 'AXED PAYER! TRIPLE SHOT!';
+        game.flashTimer = 80;
+        addParticles(pw.x + pw.w/2, pw.y + pw.h/2, 12, true);
+        addFloatText(pw.x + pw.w/2, pw.y, 'TRIPLE SHOT!', true);
+      }
+    });
+  });
+
+  // Invaders
+  game.invaders.forEach(inv => {
+    if (!inv.alive) return;
+    inv.y += inv.speed;
+    if (inv.flash > 0) inv.flash--;
+
+    // Hit player
+    if (inv.y + inv.h > game.player.y && inv.y < game.player.y + game.player.h &&
+        inv.x + inv.w > game.player.x && inv.x < game.player.x + game.player.w) {
+      inv.alive = false; game.lives--; game.streak = 0;
+      game.flashMsg = 'FILLED! OUCH!'; game.flashTimer = 60;
+      addParticles(game.player.x + game.player.w/2, game.player.y, 12, false);
+      if (game.lives <= 0) {
+        game.state = 'gameover';
+        if (game.score > game.highScore) { game.highScore = game.score; localStorage.setItem('stirboy_hi', game.highScore.toString()); }
+      }
+      return;
+    }
+
+    // Off screen
+    if (inv.y > game.ch + 10) {
+      inv.alive = false; game.missed++; game.streak = 0;
+      addFloatText(game.cw / 2, game.ch - 40, randEl(MISS_TAUNTS), false);
+    }
+  });
+
+  // Bullet-invader collisions
+  game.bullets.forEach(b => {
+    if (!b.alive) return;
+    game.invaders.forEach(inv => {
+      if (!inv.alive || !b.alive) return;
+      if (b.x + b.w > inv.x && b.x < inv.x + inv.w && b.y < inv.y + inv.h && b.y + b.h > inv.y) {
+        b.alive = false;
+        inv.hp--;
+        if (inv.hp <= 0) {
+          inv.alive = false;
+          game.streak++; if (game.streak > game.bestStreak) game.bestStreak = game.streak;
+          let mult = Math.min(game.streak, 10);
+          let pts = Math.floor(inv.size / 10) * mult;
+          game.score += pts;
+          game.waveKills++;
+          addParticles(inv.x + inv.w/2, inv.y + inv.h/2, 10, true);
+          addFloatText(inv.x + inv.w/2, inv.y, '+' + pts, true);
+
+          // Tally
+          let side = b.isLHS ? 'lhs' : 'rhs';
+          if (!game.tally[inv.ccy]) game.tally[inv.ccy] = { lhs: 0, rhs: 0, vol: 0 };
+          game.tally[inv.ccy][side]++;
+          game.tally[inv.ccy].vol += inv.size;
+
+          if (game.waveKills >= game.waveTarget) {
+            game.wave++; game.waveKills = 0; game.waveTarget = 8 + game.wave * 2;
+            game.flashMsg = 'WAVE ' + game.wave + ' - ' + getWaveLabel();
+            game.flashTimer = 100;
+          }
+        } else {
+          inv.flash = 8;
+          addParticles(b.x, b.y, 4, true);
+          addFloatText(inv.x + inv.w/2, inv.y - 6, inv.hp + ' LEFT', true);
+        }
+      }
+    });
+  });
+
+  game.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+  game.floatTexts.forEach(f => { f.y -= 0.9; f.life--; });
+
+  game.invaders = game.invaders.filter(i => i.alive);
+  game.bullets = game.bullets.filter(b => b.alive);
+  game.particles = game.particles.filter(p => p.life > 0);
+  game.floatTexts = game.floatTexts.filter(f => f.life > 0);
+  game.powerups = game.powerups.filter(p => p.alive);
+}
+
+// ---- DRAW ----
+function txt(text, x, y, size) {
+  ctx.font = size + 'px "Press Start 2P"';
+  ctx.fillText(text, x, y);
+}
+function txtW(text, size) {
+  ctx.font = size + 'px "Press Start 2P"';
+  return ctx.measureText(text).width;
+}
+function txtC(text, y, size) {
+  let w = txtW(text, size);
+  txt(text, (game.cw - w) / 2, y, size);
+}
+
+function drawPlayer() {
+  let p = game.player;
+  let glow = game.multiShot > 0;
+  ctx.fillStyle = glow ? '#224488' : GB.darkest;
+  // Body
+  ctx.fillRect(p.x + 6, p.y, p.w - 12, p.h);
+  ctx.fillRect(p.x, p.y + 6, p.w, p.h - 6);
+  // Cockpit
+  ctx.fillStyle = glow ? '#4488cc' : GB.light;
+  ctx.fillRect(p.x + 10, p.y + 3, p.w - 20, 8);
+  // Antenna
+  ctx.fillStyle = glow ? '#224488' : GB.darkest;
+  ctx.fillRect(p.x + p.w/2 - 2, p.y - 12, 4, 12);
+  ctx.fillRect(p.x + p.w/2 - 8, p.y - 12, 16, 3);
+  // Wings
+  ctx.fillRect(p.x - 4, p.y + p.h - 8, 8, 8);
+  ctx.fillRect(p.x + p.w - 4, p.y + p.h - 8, 8, 8);
+}
+
+function drawInvader(inv) {
+  let col = inv.flash > 0 ? (inv.flash % 2 === 0 ? GB.light : GB.lightest) : GB.darkest;
+
+  // Box
+  ctx.fillStyle = col;
+  ctx.fillRect(inv.x + 2, inv.y + 2, inv.w - 4, inv.h - 4);
+  ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.strokeRect(inv.x, inv.y, inv.w, inv.h);
+
+  // HP bar background
+  ctx.fillStyle = '#663333';
+  ctx.fillRect(inv.x + 4, inv.y + inv.h - 8, inv.w - 8, 4);
+  // HP bar fill
+  ctx.fillStyle = inv.hp > 1 ? '#cc4444' : '#44cc44';
+  ctx.fillRect(inv.x + 4, inv.y + inv.h - 8, (inv.w - 8) * (inv.hp / inv.maxHp), 4);
+
+  // Text - just ccy + tenor + size (NO LHS/RHS)
+  let textCol = inv.flash > 0 ? GB.darkest : GB.bg;
+  ctx.fillStyle = textCol;
+  txt(inv.ccy + ' ' + inv.tenor, inv.x + 8, inv.y + 16, 10);
+  txt(formatSize(inv.size), inv.x + 8, inv.y + 30, 9);
+}
+
+function drawPowerup(pw) {
+  // Flashing gold box
+  let t = Date.now();
+  let flash = Math.sin(t * 0.01) > 0;
+  ctx.fillStyle = flash ? '#ddaa00' : '#aa7700';
+  ctx.fillRect(pw.x, pw.y, pw.w, pw.h);
+  ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 2;
+  ctx.strokeRect(pw.x + 1, pw.y + 1, pw.w - 2, pw.h - 2);
+  ctx.fillStyle = '#fff';
+  txt(pw.label, pw.x + 6, pw.y + 22, 9);
+}
+
+function drawBullet(b) {
+  ctx.fillStyle = b.isLHS ? '#cc2222' : '#2255cc';
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(b.x + 1, b.y, 2, b.h);
+}
+
+function drawHUD() {
+  let cw = game.cw;
+
+  ctx.fillStyle = GB.darkest;
+  txt('P&L:+' + (game.score / 1000).toFixed(1) + 'm', 4, 18, 11);
+
+  // Lives
+  for (let i = 0; i < game.lives; i++) {
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(cw - 18 - i * 18, 5, 14, 12);
+  }
+
+  ctx.fillStyle = GB.dark;
+  txt('W' + game.wave, cw - 52, 30, 9);
+
+  if (game.streak > 1) txt('x' + game.streak, 4, 34, 9);
+
+  if (game.missed > 0) {
+    ctx.fillStyle = GB.dark;
+    txtC('MISS:' + game.missed, 30, 9);
+  }
+
+  // Session city
+  ctx.fillStyle = GB.dark;
+  txtC(game.sessionCity, 16, 9);
+
+  // Multi-shot indicator
+  if (game.multiShot > 0) {
+    ctx.fillStyle = '#224488';
+    let barW = cw * (game.multiShot / 400);
+    ctx.fillRect(0, 38, barW, 3);
+    ctx.fillStyle = '#4488cc';
+    txt('TRIPLE', 4, 48, 7);
+  }
+
+  // Float texts
+  game.floatTexts.forEach(f => {
+    ctx.globalAlpha = Math.min(1, f.life / 20);
+    ctx.fillStyle = f.good ? GB.darkest : '#883322';
+    ctx.font = '12px "Press Start 2P"';
+    let tw = ctx.measureText(f.text).width;
+    ctx.fillText(f.text, f.x - tw/2, f.y);
+    ctx.globalAlpha = 1;
+  });
+
+  // Banner
+  if (game.flashTimer > 0 && game.flashMsg) {
+    let alpha = game.flashTimer > 25 ? 1 : game.flashTimer / 25;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(0, game.ch / 2 - 22, cw, 44);
+    ctx.fillStyle = GB.lightest;
+    txtC(game.flashMsg, game.ch / 2 + 6, 12);
+    ctx.globalAlpha = 1;
+  }
+
+  if (game.event) {
+    ctx.fillStyle = GB.dark;
+    ctx.fillRect(0, game.ch - 5, cw * (game.eventTimer / game.event.duration), 4);
+  }
+}
+
+function drawTitle() {
+  let cw = game.cw, ch = game.ch;
+  ctx.fillStyle = GB.bg;
+  ctx.fillRect(0, 0, cw, ch);
+  let bob = Math.sin(game.titleAnim * 0.05) * 4;
+
+  ctx.fillStyle = GB.darkest;
+  txtC('STIRBOY', ch * 0.14 + bob, 22);
+  txtC('TOMNEXTER', ch * 0.21 + bob, 15);
+
+  // Ccys
+  let time = game.titleAnim * 0.03;
+  let gap = cw / (CCYS.length + 1);
+  CCYS.forEach((ccy, i) => {
+    let ix = gap * (i + 1);
+    let iy = ch * 0.30 + Math.sin(time + i * 0.8) * 8;
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(ix - 22, iy - 10, 44, 20);
+    ctx.fillStyle = GB.bg;
+    txt(ccy, ix - 16, iy + 5, 9);
+  });
+
+  ctx.fillStyle = GB.dark;
+  if (Math.floor(game.titleAnim / 30) % 2) txtC('TAP TO START', ch * 0.44, 14);
+
+  let lines = [
+    'SHOOT TRADES WITH',
+    'LHS OR RHS',
+    '',
+    'BIG SIZES = MORE HITS',
+    'SHOOT AXED PAYER FOR',
+    'TRIPLE SHOT POWERUP!',
+  ];
+  let sy = ch * 0.54;
+  lines.forEach((line, i) => {
+    ctx.fillStyle = GB.dark;
+    txtC(line, sy + i * 17, 8);
+  });
+
+  if (game.highScore > 0) {
+    ctx.fillStyle = GB.dark;
+    txtC('BEST: +' + (game.highScore/1000).toFixed(1) + 'mio', ch * 0.94, 9);
+  }
+}
+
+function drawGameOver() {
+  let cw = game.cw, ch = game.ch;
+  let boxW = Math.min(cw * 0.92, 340);
+  let ccyList = Object.keys(game.tally);
+  let tallyRows = ccyList.length;
+  let boxH = 160 + tallyRows * 16;
+  let boxX = (cw - boxW) / 2;
+  let boxY = Math.max(5, (ch - boxH) / 2);
+
+  ctx.fillStyle = GB.darkest;
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.strokeStyle = GB.light; ctx.lineWidth = 2;
+  ctx.strokeRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4);
+
+  ctx.fillStyle = GB.lightest;
+  txtC('BLOWN UP!', boxY + 28, 16);
+
+  let pnl = '+' + (game.score/1000).toFixed(1) + 'mio';
+  let y = boxY + 50;
+  ctx.fillStyle = GB.lightest;
+  txtC('P&L: ' + pnl, y, 10); y += 18;
+  txtC('WAVE ' + game.wave + '  STREAK ' + game.bestStreak, y, 8); y += 18;
+  txtC('MISSED: ' + game.missed, y, 8); y += 20;
+
+  // Tally
+  if (ccyList.length > 0) {
+    ctx.fillStyle = GB.light;
+    txtC('-- HEDGE BOOK --', y, 8); y += 16;
+    ccyList.forEach(ccy => {
+      let t = game.tally[ccy];
+      let row = ccy + '  L:' + t.lhs + '  R:' + t.rhs + '  ' + formatSize(t.vol);
+      ctx.fillStyle = GB.lightest;
+      txtC(row, y, 7); y += 16;
+    });
+  }
+
+  y += 4;
+  if (game.score >= game.highScore && game.score > 0) {
+    ctx.fillStyle = '#ffcc00';
+    txtC('NEW HIGH SCORE!', y, 9); y += 18;
+  }
+
+  if (Math.floor(Date.now() / 500) % 2) {
+    ctx.fillStyle = GB.lightest;
+    txtC('TAP TO CONTINUE', y + 4, 8);
+  }
+}
+
+function draw() {
+  ctx.fillStyle = GB.bg;
+  ctx.fillRect(0, 0, game.cw, game.ch);
+
+  if (game.state === 'title') { drawTitle(); return; }
+
+  let sx = 0, sy = 0;
+  if (game.event && (game.event.effect === 'chaos' || game.event.effect === 'boss')) {
+    sx = (Math.random()-0.5)*4; sy = (Math.random()-0.5)*4;
+  }
+  ctx.save(); ctx.translate(sx, sy);
+
+  game.powerups.forEach(pw => { if (pw.alive) drawPowerup(pw); });
+  game.invaders.forEach(inv => { if (inv.alive) drawInvader(inv); });
+  game.bullets.forEach(b => { if (b.alive) drawBullet(b); });
+  game.particles.forEach(p => {
+    ctx.fillStyle = p.good ? GB.darkest : GB.dark;
+    ctx.globalAlpha = p.life / 35;
+    ctx.fillRect(p.x, p.y, 4, 4);
+    ctx.globalAlpha = 1;
+  });
+  drawPlayer();
+  ctx.restore();
+  drawHUD();
+
+  if (game.state === 'gameover') drawGameOver();
+  if (game.state === 'paused') {
+    ctx.fillStyle = GB.darkest; ctx.globalAlpha = 0.85;
+    ctx.fillRect(0, 0, game.cw, game.ch); ctx.globalAlpha = 1;
+
+    ctx.fillStyle = GB.lightest;
+    txtC('TALLY / P&L', 28, 14);
+
+    let y = 50;
+    let pnl = '+' + (game.score / 1000).toFixed(1) + 'mio';
+    ctx.fillStyle = GB.lightest;
+    txtC('P&L: ' + pnl, y, 12); y += 22;
+    txtC('WAVE ' + game.wave + '  STREAK ' + game.bestStreak, y, 8); y += 18;
+    txtC('MISSED: ' + game.missed + '  LIVES: ' + game.lives, y, 8); y += 24;
+
+    // Tally table
+    let ccyList = Object.keys(game.tally);
+    if (ccyList.length > 0) {
+      ctx.fillStyle = GB.light;
+      txtC('-- HEDGE BOOK --', y, 9); y += 18;
+      // Header
+      ctx.fillStyle = GB.light;
+      txt('CCY', 10, y, 7);
+      txt('LHS', game.cw * 0.3, y, 7);
+      txt('RHS', game.cw * 0.5, y, 7);
+      txt('VOL', game.cw * 0.7, y, 7);
+      y += 15;
+      ccyList.forEach(ccy => {
+        let t = game.tally[ccy];
+        ctx.fillStyle = GB.lightest;
+        txt(ccy, 10, y, 8);
+        txt('' + t.lhs, game.cw * 0.3, y, 8);
+        txt('' + t.rhs, game.cw * 0.5, y, 8);
+        txt(formatSize(t.vol), game.cw * 0.7, y, 7);
+        y += 15;
+      });
+      // Totals
+      y += 4;
+      let totL = 0, totR = 0, totV = 0;
+      ccyList.forEach(c => { totL += game.tally[c].lhs; totR += game.tally[c].rhs; totV += game.tally[c].vol; });
+      ctx.fillStyle = GB.light;
+      txt('TOT', 10, y, 8);
+      txt('' + totL, game.cw * 0.3, y, 8);
+      txt('' + totR, game.cw * 0.5, y, 8);
+      txt(formatSize(totV), game.cw * 0.7, y, 7);
+    } else {
+      ctx.fillStyle = GB.light;
+      txtC('NO TRADES YET', y, 9);
+    }
+
+    // Tap to resume
+    if (Math.floor(Date.now() / 600) % 2) {
+      ctx.fillStyle = GB.lightest;
+      txtC('TAP START TO RESUME', game.ch - 16, 8);
+    }
+  }
+}
+
+function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+
+// ---- CONTROLS ----
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = true;
+  if (e.key === 'z' || e.key === ',' || e.key === ' ') { e.preventDefault(); fireBullet(true); }
+  if (e.key === 'x' || e.key === '.') fireBullet(false);
+  if (e.key === 'Enter') { if (game.state === 'title') resetGame(); else if (game.state === 'gameover') game.state = 'title'; }
+  if (e.key === 'p' || e.key === 'Escape') { if (game.state === 'playing') game.state = 'paused'; else if (game.state === 'paused') game.state = 'playing'; }
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = false;
+});
+
+function setupHold(id, down, up) {
+  let el = document.getElementById(id); if (!el) return;
+  let h = false;
+  el.addEventListener('touchstart', e => { e.preventDefault(); h = true; down(); }, { passive: false });
+  el.addEventListener('touchend', e => { e.preventDefault(); h = false; up(); }, { passive: false });
+  el.addEventListener('touchcancel', e => { e.preventDefault(); h = false; up(); }, { passive: false });
+  el.addEventListener('mousedown', e => { e.preventDefault(); h = true; down(); });
+  el.addEventListener('mouseup', e => { e.preventDefault(); h = false; up(); });
+  el.addEventListener('mouseleave', () => { if (h) { h = false; up(); } });
+}
+function setupTap(id, fn) {
+  let el = document.getElementById(id); if (!el) return;
+  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
+  el.addEventListener('mousedown', e => { e.preventDefault(); fn(); });
+}
+
+setupHold('dLeft', () => game.keys.left = true, () => game.keys.left = false);
+setupHold('dRight', () => game.keys.right = true, () => game.keys.right = false);
+setupTap('btnLHS', () => fireBullet(true));
+setupTap('btnRHS', () => fireBullet(false));
+
+document.getElementById('btnStart').addEventListener('click', () => {
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+  else if (game.state === 'paused') game.state = 'playing';
+});
+document.getElementById('btnPause').addEventListener('click', () => {
+  if (game.state === 'playing') game.state = 'paused';
+  else if (game.state === 'paused') game.state = 'playing';
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+}, { passive: false });
+canvas.addEventListener('click', () => {
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+});
+
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+resizeCanvas();
+gameLoop();
+</script>
+</body>
+</html>
