@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>FX Hedgeboy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #2d2d2d;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100dvh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #gameboy {
+    background: #b0b0b0;
+    border-radius: 18px 18px 60px 18px;
+    padding: 16px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 4px 4px 0 #888, inset 0 0 8px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #screen-bezel {
+    background: #4a4a6a;
+    border-radius: 8px;
+    padding: 12px 10px 8px;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .screen-label {
+    color: #8888aa;
+    font-size: 6px;
+    text-align: center;
+    margin-bottom: 4px;
+    letter-spacing: 2px;
+  }
+
+  #gameCanvas {
+    width: 100%;
+    aspect-ratio: 10 / 9;
+    display: block;
+    background: #9bbc0f;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+
+  .screen-bottom-label {
+    color: #8888aa;
+    font-size: 5px;
+    text-align: center;
+    margin-top: 4px;
+    letter-spacing: 4px;
+  }
+
+  #controls {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+  }
+
+  .dpad {
+    display: grid;
+    grid-template: 36px 36px 36px / 36px 36px 36px;
+    gap: 0;
+  }
+
+  .dpad-btn {
+    background: #2d2d2d;
+    border: none;
+    color: #aaa;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dpad-btn:active { background: #444; }
+  .dpad-up { grid-column: 2; border-radius: 4px 4px 0 0; }
+  .dpad-down { grid-column: 2; border-radius: 0 0 4px 4px; }
+  .dpad-left { grid-row: 2; border-radius: 4px 0 0 4px; }
+  .dpad-right { grid-row: 2; grid-column: 3; border-radius: 0 4px 4px 0; }
+  .dpad-center { grid-row: 2; grid-column: 2; background: #333; }
+
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    transform: rotate(-20deg);
+  }
+
+  .action-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.3;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+  }
+
+  .action-btn:active { transform: scale(0.95); box-shadow: 1px 1px 0 rgba(0,0,0,0.3); }
+
+  .btn-lhs {
+    background: #c03030;
+    color: #fff;
+  }
+
+  .btn-rhs {
+    background: #c03030;
+    color: #fff;
+    margin-top: -16px;
+  }
+
+  .meta-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .meta-btn {
+    width: 40px;
+    height: 12px;
+    border-radius: 6px;
+    border: none;
+    background: #777;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    color: #444;
+    cursor: pointer;
+    transform: rotate(-8deg);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (max-height: 600px) {
+    #gameboy { padding: 8px; border-radius: 12px 12px 40px 12px; }
+    #screen-bezel { padding: 6px 6px 4px; margin-bottom: 4px; }
+    .dpad { grid-template: 28px 28px 28px / 28px 28px 28px; }
+    .action-btn { width: 42px; height: 42px; font-size: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameboy">
+  <div id="screen-bezel">
+    <div class="screen-label">FX HEDGEBOY</div>
+    <canvas id="gameCanvas" width="400" height="360"></canvas>
+    <div class="screen-bottom-label">ANTHROPIC&trade;</div>
+  </div>
+
+  <div class="meta-buttons">
+    <button class="meta-btn" id="btnPause">PAUSE</button>
+    <button class="meta-btn" id="btnStart">START</button>
+  </div>
+
+  <div id="controls">
+    <div class="dpad">
+      <button class="dpad-btn dpad-up" id="dUp">&#9650;</button>
+      <button class="dpad-btn dpad-left" id="dLeft">&#9664;</button>
+      <div class="dpad-center"></div>
+      <button class="dpad-btn dpad-right" id="dRight">&#9654;</button>
+      <button class="dpad-btn dpad-down" id="dDown">&#9660;</button>
+    </div>
+
+    <div class="action-buttons">
+      <button class="action-btn btn-rhs" id="btnRHS">RHS<br>BUY</button>
+      <button class="action-btn btn-lhs" id="btnLHS">LHS<br>SELL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// FX HEDGEBOY - Space Invaders meets FX Trading
+// ============================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game Boy palette
+const GB = {
+  darkest:  '#0f380f',
+  dark:     '#306230',
+  light:    '#8bac0f',
+  lightest: '#9bbc0f',
+  bg:       '#9bbc0f',
+  red:      '#0f380f',
+};
+
+// Currency pairs
+const CCYS = ['AUD','NZD','JPY','CHF','EUR','CAD','GBP'];
+
+// Tenors with config
+const TENOR_WAVES = [
+  { tenors: ['T/N','S/N','1W'], minSize: 500, maxSize: 2000, speed: 1.8, label: 'SHORT DATES' },
+  { tenors: ['2W','1M','2M'], minSize: 500, maxSize: 1000, speed: 1.4, label: 'MEDIUM TENORS' },
+  { tenors: ['3M','6M'], minSize: 200, maxSize: 500, speed: 1.1, label: 'MEDIUM-LONG' },
+  { tenors: ['9M','1Y','2Y'], minSize: 50, maxSize: 500, speed: 0.8, label: 'LONG DATES' },
+];
+
+// Surprise events
+const EVENTS = [
+  { name: 'NFP RELEASE', effect: 'speedup', duration: 300, color: '#306230' },
+  { name: 'CPI PRINT!', effect: 'speedup', duration: 300, color: '#306230' },
+  { name: 'FOMC DECISION', effect: 'chaos', duration: 400, color: '#306230' },
+  { name: 'O/N CUTOFF', effect: 'flood', duration: 250, color: '#306230' },
+  { name: 'SYD>LDN HANDOVER', effect: 'shift', duration: 200, color: '#306230' },
+  { name: 'LDN>NY HANDOVER', effect: 'shift', duration: 200, color: '#306230' },
+  { name: 'BASIS BLOW-OUT!', effect: 'split', duration: 350, color: '#306230' },
+  { name: 'FUNDING SQUEEZE', effect: 'accel', duration: 300, color: '#306230' },
+  { name: 'YEAR-END TURN', effect: 'boss', duration: 500, color: '#0f380f' },
+];
+
+// Game state
+let game = {
+  state: 'title', // title, playing, paused, gameover
+  score: 0,
+  lives: 3,
+  wave: 1,
+  streak: 0,
+  bestStreak: 0,
+  player: { x: 200, y: 320, w: 40, h: 16, speed: 4 },
+  invaders: [],
+  bullets: [],
+  particles: [],
+  event: null,
+  eventTimer: 0,
+  spawnTimer: 0,
+  spawnRate: 80,
+  waveKills: 0,
+  waveTarget: 8,
+  keys: { left: false, right: false },
+  lastLHS: false,
+  highScore: parseInt(localStorage.getItem('fxhedgeboy_hi') || '0'),
+  flashTimer: 0,
+  flashMsg: '',
+  titleAnim: 0,
+  sessionCity: 'SYDNEY',
+};
+
+function formatSize(mio) {
+  if (mio >= 1000) return (mio/1000).toFixed(1) + 'bn';
+  return mio + 'mio';
+}
+
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randEl(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function getWaveConfig() {
+  let idx = Math.min(Math.floor((game.wave - 1) / 2), TENOR_WAVES.length - 1);
+  return TENOR_WAVES[idx];
+}
+
+function spawnInvader() {
+  let cfg = getWaveConfig();
+  let ccy = randEl(CCYS);
+  let tenor = randEl(cfg.tenors);
+  let size = randInt(cfg.minSize / 50, cfg.maxSize / 50) * 50;
+  let isLHS = Math.random() < 0.5;
+  let speedMult = 1 + (game.wave - 1) * 0.08;
+  let eventSpeedMult = 1;
+
+  if (game.event) {
+    if (game.event.effect === 'speedup' || game.event.effect === 'chaos') eventSpeedMult = 1.6;
+    if (game.event.effect === 'accel') eventSpeedMult = 2.0;
+    if (game.event.effect === 'boss') eventSpeedMult = 1.8;
+  }
+
+  let sizeForEvent = size;
+  if (game.event && game.event.effect === 'accel') sizeForEvent = size * 2;
+
+  let invW = 70;
+  let x = randInt(10, canvas.width - invW - 10);
+
+  return {
+    x: x,
+    y: -20,
+    w: invW,
+    h: 28,
+    speed: cfg.speed * speedMult * eventSpeedMult * (0.8 + Math.random() * 0.4),
+    ccy: ccy,
+    tenor: tenor,
+    size: sizeForEvent,
+    isLHS: isLHS,
+    alive: true,
+    flash: 0,
+    hp: game.wave > 6 ? 2 : 1,
+  };
+}
+
+function fireBullet(isLHS) {
+  if (game.state !== 'playing') return;
+  game.lastLHS = isLHS;
+  game.bullets.push({
+    x: game.player.x + game.player.w / 2 - 2,
+    y: game.player.y - 4,
+    w: 4,
+    h: 8,
+    speed: 6,
+    isLHS: isLHS,
+    alive: true,
+  });
+}
+
+function triggerEvent() {
+  let evt = randEl(EVENTS);
+  game.event = { ...evt };
+  game.eventTimer = evt.duration;
+  game.flashMsg = evt.name;
+  game.flashTimer = 90;
+
+  if (evt.effect === 'flood') {
+    for (let i = 0; i < 5; i++) {
+      let inv = spawnInvader();
+      inv.tenor = randEl(['T/N','S/N']);
+      inv.size = randInt(10, 40) * 50;
+      inv.speed *= 1.5;
+      game.invaders.push(inv);
+    }
+  }
+
+  if (evt.effect === 'split') {
+    game.invaders.forEach(inv => {
+      if (inv.alive && Math.random() < 0.5) {
+        let clone = { ...inv, x: inv.x + randInt(-20, 20), isLHS: !inv.isLHS };
+        game.invaders.push(clone);
+      }
+    });
+  }
+
+  if (evt.effect === 'shift') {
+    if (evt.name.includes('LDN')) game.sessionCity = 'LONDON';
+    else if (evt.name.includes('NY')) game.sessionCity = 'NEW YORK';
+    else game.sessionCity = 'SYDNEY';
+  }
+}
+
+function addParticles(x, y, count, good) {
+  for (let i = 0; i < count; i++) {
+    game.particles.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+      life: 20 + Math.random() * 20,
+      good: good,
+    });
+  }
+}
+
+function resetGame() {
+  game.state = 'playing';
+  game.score = 0;
+  game.lives = 3;
+  game.wave = 1;
+  game.streak = 0;
+  game.bestStreak = 0;
+  game.invaders = [];
+  game.bullets = [];
+  game.particles = [];
+  game.event = null;
+  game.eventTimer = 0;
+  game.spawnTimer = 0;
+  game.waveKills = 0;
+  game.waveTarget = 8;
+  game.player.x = 200;
+  game.sessionCity = 'SYDNEY';
+  game.flashMsg = '';
+  game.flashTimer = 0;
+}
+
+// ---- UPDATE ----
+function update() {
+  if (game.state === 'title') {
+    game.titleAnim++;
+    return;
+  }
+  if (game.state !== 'playing') return;
+
+  // Player movement
+  if (game.keys.left) game.player.x -= game.player.speed;
+  if (game.keys.right) game.player.x += game.player.speed;
+  game.player.x = Math.max(0, Math.min(canvas.width - game.player.w, game.player.x));
+
+  // Spawn
+  game.spawnTimer++;
+  let rate = Math.max(30, game.spawnRate - game.wave * 4);
+  if (game.event && (game.event.effect === 'flood' || game.event.effect === 'boss')) rate = 20;
+  if (game.spawnTimer >= rate) {
+    game.spawnTimer = 0;
+    game.invaders.push(spawnInvader());
+  }
+
+  // Event timer
+  if (game.event) {
+    game.eventTimer--;
+    if (game.eventTimer <= 0) game.event = null;
+  }
+
+  // Random event trigger
+  if (!game.event && Math.random() < 0.002 + game.wave * 0.001) {
+    triggerEvent();
+  }
+
+  // Flash timer
+  if (game.flashTimer > 0) game.flashTimer--;
+
+  // Update bullets
+  game.bullets.forEach(b => {
+    if (!b.alive) return;
+    b.y -= b.speed;
+    if (b.y < -10) b.alive = false;
+  });
+
+  // Update invaders
+  game.invaders.forEach(inv => {
+    if (!inv.alive) return;
+    inv.y += inv.speed;
+    if (inv.flash > 0) inv.flash--;
+
+    // Hit player
+    if (inv.y + inv.h > game.player.y && inv.y < game.player.y + game.player.h &&
+        inv.x + inv.w > game.player.x && inv.x < game.player.x + game.player.w) {
+      inv.alive = false;
+      game.lives--;
+      game.streak = 0;
+      game.flashMsg = 'FILLED!';
+      game.flashTimer = 60;
+      addParticles(game.player.x + game.player.w/2, game.player.y, 10, false);
+      if (game.lives <= 0) {
+        game.state = 'gameover';
+        if (game.score > game.highScore) {
+          game.highScore = game.score;
+          localStorage.setItem('fxhedgeboy_hi', game.highScore.toString());
+        }
+      }
+    }
+
+    // Off screen
+    if (inv.y > canvas.height + 10) {
+      inv.alive = false;
+      game.streak = 0;
+    }
+  });
+
+  // Bullet-invader collisions
+  game.bullets.forEach(b => {
+    if (!b.alive) return;
+    game.invaders.forEach(inv => {
+      if (!inv.alive) return;
+      if (b.x + b.w > inv.x && b.x < inv.x + inv.w &&
+          b.y < inv.y + inv.h && b.y + b.h > inv.y) {
+        b.alive = false;
+
+        // Check LHS/RHS match
+        if (b.isLHS === inv.isLHS) {
+          // Correct hedge!
+          inv.hp--;
+          if (inv.hp <= 0) {
+            inv.alive = false;
+            game.streak++;
+            if (game.streak > game.bestStreak) game.bestStreak = game.streak;
+            let mult = Math.min(game.streak, 10);
+            let pts = Math.floor(inv.size / 10) * mult;
+            game.score += pts;
+            game.waveKills++;
+            addParticles(inv.x + inv.w/2, inv.y + inv.h/2, 8, true);
+
+            if (game.waveKills >= game.waveTarget) {
+              game.wave++;
+              game.waveKills = 0;
+              game.waveTarget = 8 + game.wave * 2;
+              game.flashMsg = 'WAVE ' + game.wave + ' - ' + getWaveConfig().label;
+              game.flashTimer = 90;
+            }
+          } else {
+            inv.flash = 8;
+            addParticles(b.x, b.y, 4, true);
+          }
+        } else {
+          // Wrong side! Penalty
+          game.score = Math.max(0, game.score - Math.floor(inv.size / 20));
+          game.streak = 0;
+          inv.flash = 15;
+          game.flashMsg = 'WRONG SIDE!';
+          game.flashTimer = 45;
+          addParticles(inv.x + inv.w/2, inv.y + inv.h/2, 6, false);
+        }
+      }
+    });
+  });
+
+  // Update particles
+  game.particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+  });
+
+  // Cleanup
+  game.invaders = game.invaders.filter(i => i.alive);
+  game.bullets = game.bullets.filter(b => b.alive);
+  game.particles = game.particles.filter(p => p.life > 0);
+}
+
+// ---- DRAW ----
+function drawPixelText(text, x, y, size, color) {
+  ctx.fillStyle = color || GB.darkest;
+  ctx.font = size + 'px "Press Start 2P"';
+  ctx.fillText(text, x, y);
+}
+
+function drawPlayer() {
+  let p = game.player;
+  ctx.fillStyle = GB.darkest;
+  // Desk terminal shape
+  ctx.fillRect(p.x + 4, p.y, p.w - 8, p.h);
+  ctx.fillRect(p.x, p.y + 4, p.w, p.h - 4);
+  // Screen
+  ctx.fillStyle = GB.light;
+  ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 6);
+  // Antenna
+  ctx.fillStyle = GB.darkest;
+  ctx.fillRect(p.x + p.w/2 - 1, p.y - 6, 2, 6);
+  ctx.fillRect(p.x + p.w/2 - 4, p.y - 6, 8, 2);
+}
+
+function drawInvader(inv) {
+  let col = inv.flash > 0 ? GB.lightest : GB.darkest;
+  if (inv.flash > 0 && inv.flash % 2 === 0) col = GB.light;
+
+  // Body
+  ctx.fillStyle = col;
+  ctx.fillRect(inv.x + 2, inv.y + 2, inv.w - 4, inv.h - 4);
+
+  // Border
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(inv.x + 1, inv.y + 1, inv.w - 2, inv.h - 2);
+
+  // Side indicator
+  let sideCol = inv.isLHS ? GB.dark : GB.lightest;
+  ctx.fillStyle = sideCol;
+  ctx.fillRect(inv.x + 3, inv.y + 3, 4, inv.h - 6);
+
+  // Text
+  ctx.fillStyle = inv.flash > 0 ? GB.darkest : GB.bg;
+  ctx.font = '5px "Press Start 2P"';
+  ctx.fillText(inv.isLHS ? 'L' : 'R', inv.x + 4, inv.y + 11);
+  ctx.fillText(inv.ccy, inv.x + 12, inv.y + 11);
+  ctx.font = '4px "Press Start 2P"';
+  ctx.fillText(inv.tenor + ' ' + formatSize(inv.size), inv.x + 12, inv.y + 21);
+}
+
+function drawBullet(b) {
+  ctx.fillStyle = GB.darkest;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  // LHS/RHS indicator
+  ctx.fillStyle = GB.light;
+  if (b.isLHS) {
+    ctx.fillRect(b.x, b.y, 2, b.h);
+  } else {
+    ctx.fillRect(b.x + 2, b.y, 2, b.h);
+  }
+}
+
+function drawHUD() {
+  // P&L
+  let pnl = game.score >= 0 ? '+' + (game.score / 1000).toFixed(1) + 'mio' : (game.score / 1000).toFixed(1) + 'mio';
+  drawPixelText('P&L:' + pnl, 4, 12, 6, GB.darkest);
+
+  // Lives
+  for (let i = 0; i < game.lives; i++) {
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(canvas.width - 14 - i * 14, 4, 10, 8);
+  }
+
+  // Wave
+  drawPixelText('W' + game.wave, canvas.width - 36, 20, 5, GB.dark);
+
+  // Streak
+  if (game.streak > 1) {
+    drawPixelText('x' + game.streak, 4, 24, 5, GB.dark);
+  }
+
+  // Session city
+  drawPixelText(game.sessionCity, canvas.width / 2 - 20, 12, 5, GB.dark);
+
+  // Event banner
+  if (game.flashTimer > 0 && game.flashMsg) {
+    let alpha = game.flashTimer > 20 ? 1 : game.flashTimer / 20;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(0, canvas.height / 2 - 16, canvas.width, 32);
+    ctx.fillStyle = GB.lightest;
+    ctx.font = '8px "Press Start 2P"';
+    let tw = ctx.measureText(game.flashMsg).width;
+    ctx.fillText(game.flashMsg, (canvas.width - tw) / 2, canvas.height / 2 + 3);
+    ctx.globalAlpha = 1;
+  }
+
+  // Active event indicator
+  if (game.event) {
+    ctx.fillStyle = GB.dark;
+    ctx.fillRect(0, canvas.height - 8, canvas.width * (game.eventTimer / game.event.duration), 3);
+  }
+}
+
+function drawTitle() {
+  ctx.fillStyle = GB.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  let bob = Math.sin(game.titleAnim * 0.05) * 4;
+
+  ctx.fillStyle = GB.darkest;
+  ctx.font = '16px "Press Start 2P"';
+  let t1 = 'FX';
+  let w1 = ctx.measureText(t1).width;
+  ctx.fillText(t1, (canvas.width - w1) / 2, 80 + bob);
+
+  ctx.font = '12px "Press Start 2P"';
+  let t2 = 'HEDGEBOY';
+  let w2 = ctx.measureText(t2).width;
+  ctx.fillText(t2, (canvas.width - w2) / 2, 105 + bob);
+
+  // Animated invaders on title
+  let time = game.titleAnim * 0.03;
+  CCYS.forEach((ccy, i) => {
+    let ix = 60 + i * 42;
+    let iy = 150 + Math.sin(time + i * 0.8) * 10;
+    ctx.fillStyle = GB.darkest;
+    ctx.fillRect(ix, iy, 36, 18);
+    ctx.fillStyle = GB.bg;
+    ctx.font = '5px "Press Start 2P"';
+    ctx.fillText(ccy, ix + 4, iy + 12);
+  });
+
+  ctx.fillStyle = GB.dark;
+  ctx.font = '6px "Press Start 2P"';
+  let blink = Math.floor(game.titleAnim / 30) % 2;
+  if (blink) {
+    let t3 = 'PRESS START';
+    let w3 = ctx.measureText(t3).width;
+    ctx.fillText(t3, (canvas.width - w3) / 2, 220);
+  }
+
+  ctx.font = '5px "Press Start 2P"';
+  ctx.fillStyle = GB.dark;
+  let t4 = 'LHS=SELL  RHS=BUY';
+  let w4 = ctx.measureText(t4).width;
+  ctx.fillText(t4, (canvas.width - w4) / 2, 260);
+
+  let t5 = 'HEDGE THE FLOW';
+  let w5 = ctx.measureText(t5).width;
+  ctx.fillText(t5, (canvas.width - w5) / 2, 275);
+
+  let t6 = 'MATCH THE SIDE OR LOSE P&L';
+  let w6 = ctx.measureText(t6).width;
+  ctx.fillText(t6, (canvas.width - w6) / 2, 290);
+
+  if (game.highScore > 0) {
+    ctx.font = '5px "Press Start 2P"';
+    let t7 = 'BEST: +' + (game.highScore / 1000).toFixed(1) + 'mio';
+    let w7 = ctx.measureText(t7).width;
+    ctx.fillText(t7, (canvas.width - w7) / 2, 320);
+  }
+}
+
+function drawGameOver() {
+  ctx.fillStyle = GB.darkest;
+  ctx.fillRect(40, 100, canvas.width - 80, 160);
+  ctx.fillStyle = GB.bg;
+  ctx.strokeStyle = GB.light;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(42, 102, canvas.width - 84, 156);
+
+  ctx.fillStyle = GB.lightest;
+  ctx.font = '10px "Press Start 2P"';
+  let t1 = 'BLOWN UP';
+  let w1 = ctx.measureText(t1).width;
+  ctx.fillText(t1, (canvas.width - w1) / 2, 130);
+
+  ctx.font = '7px "Press Start 2P"';
+  let pnl = '+' + (game.score / 1000).toFixed(1) + 'mio';
+  let t2 = 'FINAL P&L: ' + pnl;
+  let w2 = ctx.measureText(t2).width;
+  ctx.fillText(t2, (canvas.width - w2) / 2, 160);
+
+  ctx.font = '6px "Press Start 2P"';
+  let t3 = 'WAVE: ' + game.wave;
+  let w3 = ctx.measureText(t3).width;
+  ctx.fillText(t3, (canvas.width - w3) / 2, 180);
+
+  let t4 = 'BEST STREAK: ' + game.bestStreak;
+  let w4 = ctx.measureText(t4).width;
+  ctx.fillText(t4, (canvas.width - w4) / 2, 196);
+
+  if (game.score >= game.highScore && game.score > 0) {
+    ctx.font = '6px "Press Start 2P"';
+    let t5 = 'NEW HIGH SCORE!';
+    let w5 = ctx.measureText(t5).width;
+    ctx.fillText(t5, (canvas.width - w5) / 2, 216);
+  }
+
+  let blink = Math.floor(Date.now() / 500) % 2;
+  if (blink) {
+    ctx.font = '5px "Press Start 2P"';
+    let t6 = 'PRESS START';
+    let w6 = ctx.measureText(t6).width;
+    ctx.fillText(t6, (canvas.width - w6) / 2, 240);
+  }
+}
+
+function draw() {
+  // Clear with GB background
+  ctx.fillStyle = GB.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (game.state === 'title') {
+    drawTitle();
+    return;
+  }
+
+  // Screen shake during events
+  let shakeX = 0, shakeY = 0;
+  if (game.event && (game.event.effect === 'chaos' || game.event.effect === 'boss')) {
+    shakeX = (Math.random() - 0.5) * 4;
+    shakeY = (Math.random() - 0.5) * 4;
+  }
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // Draw invaders
+  game.invaders.forEach(inv => { if (inv.alive) drawInvader(inv); });
+
+  // Draw bullets
+  game.bullets.forEach(b => { if (b.alive) drawBullet(b); });
+
+  // Draw particles
+  game.particles.forEach(p => {
+    ctx.fillStyle = p.good ? GB.darkest : GB.dark;
+    ctx.globalAlpha = p.life / 40;
+    ctx.fillRect(p.x, p.y, 3, 3);
+    ctx.globalAlpha = 1;
+  });
+
+  // Draw player
+  drawPlayer();
+
+  ctx.restore();
+
+  // HUD
+  drawHUD();
+
+  if (game.state === 'gameover') drawGameOver();
+  if (game.state === 'paused') {
+    ctx.fillStyle = GB.darkest;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = GB.lightest;
+    ctx.font = '12px "Press Start 2P"';
+    let tp = 'PAUSED';
+    let wp = ctx.measureText(tp).width;
+    ctx.fillText(tp, (canvas.width - wp) / 2, canvas.height / 2);
+  }
+}
+
+// ---- GAME LOOP ----
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// ---- CONTROLS ----
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = true;
+  if (e.key === 'z' || e.key === ',') fireBullet(true);  // LHS
+  if (e.key === 'x' || e.key === '.') fireBullet(false);  // RHS
+  if (e.key === 'Enter' || e.key === ' ') {
+    if (game.state === 'title') resetGame();
+    else if (game.state === 'gameover') { game.state = 'title'; }
+    else if (game.state === 'paused') game.state = 'playing';
+  }
+  if (e.key === 'p' || e.key === 'Escape') {
+    if (game.state === 'playing') game.state = 'paused';
+    else if (game.state === 'paused') game.state = 'playing';
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') game.keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') game.keys.right = false;
+});
+
+// D-pad buttons
+function setupBtn(id, keyDown, keyUp) {
+  let el = document.getElementById(id);
+  if (!el) return;
+  const start = (e) => { e.preventDefault(); keyDown(); };
+  const end = (e) => { e.preventDefault(); keyUp(); };
+  el.addEventListener('touchstart', start, { passive: false });
+  el.addEventListener('touchend', end, { passive: false });
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', end);
+  el.addEventListener('mouseleave', end);
+}
+
+setupBtn('dLeft', () => game.keys.left = true, () => game.keys.left = false);
+setupBtn('dRight', () => game.keys.right = true, () => game.keys.right = false);
+
+// Action buttons
+function setupFire(id, isLHS) {
+  let el = document.getElementById(id);
+  if (!el) return;
+  const fire = (e) => { e.preventDefault(); fireBullet(isLHS); };
+  el.addEventListener('touchstart', fire, { passive: false });
+  el.addEventListener('mousedown', fire);
+}
+
+setupFire('btnLHS', true);
+setupFire('btnRHS', false);
+
+// Start/Pause
+document.getElementById('btnStart').addEventListener('click', () => {
+  if (game.state === 'title') resetGame();
+  else if (game.state === 'gameover') game.state = 'title';
+  else if (game.state === 'paused') game.state = 'playing';
+});
+
+document.getElementById('btnPause').addEventListener('click', () => {
+  if (game.state === 'playing') game.state = 'paused';
+  else if (game.state === 'paused') game.state = 'playing';
+});
+
+// Prevent scrolling on touch
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+// ---- START ----
+gameLoop();
+</script>
+</body>
+</html>
