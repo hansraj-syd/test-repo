@@ -65,6 +65,26 @@
   .speaker { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 3px; transform: rotate(-25deg); }
   .speaker-line { width: 24px; height: 2px; background: #888; border-radius: 1px; }
 
+  /* Name input overlay */
+  #nameOverlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    justify-content: center; align-items: center; flex-direction: column; gap: 12px;
+  }
+  #nameOverlay.show { display: flex; }
+  #nameOverlay label { color: #9bbc0f; font-size: 12px; font-family: 'Press Start 2P', monospace; }
+  #nameInput {
+    background: #0f380f; color: #9bbc0f; border: 3px solid #8bac0f; border-radius: 8px;
+    font-family: 'Press Start 2P', monospace; font-size: 16px; padding: 10px 14px;
+    text-align: center; width: 220px; text-transform: uppercase; outline: none;
+  }
+  #nameInput::placeholder { color: #306230; }
+  #nameOk {
+    background: #306230; color: #9bbc0f; border: 2px solid #8bac0f; border-radius: 8px;
+    font-family: 'Press Start 2P', monospace; font-size: 12px; padding: 8px 24px; cursor: pointer;
+  }
+  #nameOk:active { background: #8bac0f; color: #0f380f; }
+
   @media (max-height: 620px) {
     #gameboy { padding: 4px 5px 6px; }
     .arrow-btn { width: 58px; height: 64px; font-size: 28px; }
@@ -103,6 +123,13 @@
   <div class="speaker"><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div></div>
 </div>
 
+<!-- Name entry overlay -->
+<div id="nameOverlay">
+  <label>ENTER YOUR NAME</label>
+  <input id="nameInput" type="text" maxlength="8" placeholder="TRADER" autocomplete="off" autocapitalize="characters" spellcheck="false">
+  <button id="nameOk">LET'S GO</button>
+</div>
+
 <script>
 // ---- CONFIG ----
 const GB = { darkest: 0x0f380f, dark: 0x306230, light: 0x8bac0f, lightest: 0x9bbc0f, bg: 0x9bbc0f };
@@ -121,9 +148,10 @@ const LONG_TENORS = ALL_TENORS.filter(t => ['6M','9M','1Y','2Y'].includes(t.teno
 const ON_TENORS = ALL_TENORS.filter(t => ['T/N','S/N'].includes(t.tenor));
 
 const MISS_TAUNTS = [
-  'TOO SLOW!','CLIENT NOT HAPPY!','SALES ON LINE 2...','BROKER IS LAUGHING',
-  'SHOULDA HEDGED THAT','TICKET DROPPED!','ASLEEP AT THE DESK?','NICE ONE CHAMP...',
+  'TOO SLOW!','CLIENT ANGRY!','SALES ON LINE 2..','BROKER LAUGHING',
+  'SHOULDA HEDGED!','TICKET DROPPED!','ASLEEP?!','NICE ONE CHAMP..',
 ];
+const WAVE_LABELS = ['WARMING UP','FLOW PICKING UP','GETTING BUSY','HEAVY FLOW','CARNAGE','FULL SEND'];
 
 const EVENTS = [
   { name:'ES BALANCE EXPLODES!', fx:'chaos', dur:5000 },
@@ -136,15 +164,119 @@ const EVENTS = [
   { name:'REPO RATE SPIKES!', fx:'flood', dur:4000 },
   { name:'XCCY BASIS BLOWS!', fx:'chaos', dur:5000 },
   { name:'RBA SURPRISE OMO!', fx:'omo', dur:6000 },
-  { name:'QUARTER-END SQUEEZE!', fx:'quake', dur:5000 },
+  { name:'QTR-END SQUEEZE!', fx:'quake', dur:5000 },
   { name:'BOND SETTLE DRAIN!', fx:'small', dur:4000 },
   { name:'EXCESS BILL SUPPLY!', fx:'blink', dur:5000 },
 ];
+
+// Player name (persisted in localStorage)
+let PLAYER_NAME = '';
+try { PLAYER_NAME = localStorage.getItem('stirboy_name') || ''; } catch(e){}
 
 function fmtSize(m) { return m >= 1000 ? (m/1000).toFixed(1)+'bn' : m+'m'; }
 function ri(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
 function rEl(a) { return a[Math.floor(Math.random()*a.length)]; }
 function hpFor(size) { if(size>=1500) return 4; if(size>=1000) return 3; if(size>=500) return 2; return 1; }
+
+// ---- BOOT SCENE (create textures) ----
+class BootScene extends Phaser.Scene {
+  constructor() { super('Boot'); }
+  create() {
+    // Star texture
+    let g = this.make.graphics({add:false});
+    g.fillStyle(0x306230); g.fillRect(0,0,2,2);
+    g.generateTexture('dot', 2, 2); g.destroy();
+    // Scanline texture
+    let s = this.make.graphics({add:false});
+    s.fillStyle(0x000000, 0.06);
+    for (let i=0; i<200; i+=2) s.fillRect(0, i, 400, 1);
+    s.generateTexture('scanlines', 400, 200); s.destroy();
+    this.scene.start('Title');
+  }
+}
+
+// ---- TITLE SCENE ----
+class TitleScene extends Phaser.Scene {
+  constructor() { super('Title'); }
+  create() {
+    let W = this.scale.width, H = this.scale.height;
+    this.cameras.main.setBackgroundColor(GB.bg);
+
+    // Scrolling dots bg
+    this.dots = [];
+    for (let i = 0; i < 30; i++) {
+      let d = this.add.rectangle(ri(0,W), ri(0,H), 2, 2, GB.dark).setAlpha(0.3);
+      this.dots.push(d);
+    }
+
+    // Scanline overlay
+    this.add.tileSprite(0, 0, W, H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.5);
+
+    let t1 = this.add.text(W/2, H*0.10, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:'26px', color:GBS.darkest }).setOrigin(0.5);
+    let t2 = this.add.text(W/2, H*0.17, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:'16px', color:GBS.dark }).setOrigin(0.5);
+    this.tweens.add({ targets: [t1,t2], y: '+=5', duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    // Ccys parade
+    let gap = W / (CCYS.length + 1);
+    CCYS.forEach((ccy, i) => {
+      let bx = this.add.rectangle(gap*(i+1), H*0.27, 44, 22, GB.darkest);
+      let tx = this.add.text(gap*(i+1), H*0.27, ccy, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.bg }).setOrigin(0.5);
+      this.tweens.add({ targets: [bx,tx], y: '+=10', duration: 600, yoyo:true, repeat:-1, delay: i*120, ease:'Sine.easeInOut' });
+    });
+
+    // Player name display
+    if (PLAYER_NAME) {
+      this.add.text(W/2, H*0.35, 'TRADER: ' + PLAYER_NAME, { fontFamily:'"Press Start 2P"', fontSize:'11px', color:GBS.darkest }).setOrigin(0.5);
+      let chg = this.add.text(W/2, H*0.39, '[TAP HERE TO CHANGE]', { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5).setInteractive();
+      chg.on('pointerdown', () => showNameEntry());
+    }
+
+    let blink = this.add.text(W/2, H*0.46, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.darkest }).setOrigin(0.5);
+    this.tweens.add({ targets: blink, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
+
+    let lines = [
+      'SHOOT TRADES WITH',
+      'LHS OR RHS',
+      '',
+      'BIG SIZES = MORE HP',
+      '',
+      'AXED PAYER = POWERUP!',
+    ];
+    lines.forEach((l,i) => {
+      this.add.text(W/2, H*0.54 + i*18, l, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.dark }).setOrigin(0.5);
+    });
+
+    // High score
+    let hi = 0; try { hi = parseInt(localStorage.getItem('stirboy_hi') || '0'); } catch(e){}
+    if (hi > 0) {
+      this.add.text(W/2, H*0.90, 'BEST: +' + (hi/1000).toFixed(1) + 'mio', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.darkest }).setOrigin(0.5);
+    }
+    this.add.text(W/2, H*0.95, 'v2 PHASER', { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5);
+
+    this.input.once('pointerdown', (p) => {
+      // Don't start if they tapped the change-name link area
+      if (PLAYER_NAME && p.y > H*0.37 && p.y < H*0.42) return;
+      this.startGame();
+    });
+    this.input.keyboard.once('keydown-ENTER', () => this.startGame());
+  }
+
+  startGame() {
+    if (!PLAYER_NAME) {
+      showNameEntry(() => this.scene.start('Game'));
+    } else {
+      this.scene.start('Game');
+    }
+  }
+
+  update(time, delta) {
+    let H = this.scale.height;
+    this.dots.forEach(d => {
+      d.y += 15 * (delta/1000);
+      if (d.y > H + 4) { d.y = -4; d.x = ri(0, this.scale.width); }
+    });
+  }
+}
 
 // ---- GAME SCENE ----
 class GameScene extends Phaser.Scene {
@@ -161,51 +293,71 @@ class GameScene extends Phaser.Scene {
     this.tally = {};
     this.activeEvent = null;
     this.paused = false;
+    this.thrusterTimer = 0;
+
+    // Scrolling dots background
+    this.bgDots = [];
+    for (let i = 0; i < 25; i++) {
+      let d = this.add.rectangle(ri(0,this.W), ri(0,this.H), 2, 2, GB.dark).setAlpha(0.25);
+      this.bgDots.push(d);
+    }
 
     // Groups
     this.invaders = this.add.group();
     this.bullets = this.add.group();
     this.powerups = this.add.group();
 
-    // Player
-    this.player = this.add.rectangle(this.W/2, this.H - 24, 48, 20, GB.darkest);
-    this.playerGun = this.add.rectangle(this.W/2, this.H - 38, 4, 14, GB.darkest);
-    this.playerWingL = this.add.rectangle(this.W/2 - 28, this.H - 18, 8, 10, GB.darkest);
-    this.playerWingR = this.add.rectangle(this.W/2 + 28, this.H - 18, 8, 10, GB.darkest);
-    this.playerCockpit = this.add.rectangle(this.W/2, this.H - 26, 24, 8, GB.light);
+    // Player ship
+    this.playerParts = [];
+    this.player = this.add.rectangle(this.W/2, this.H - 28, 52, 22, GB.darkest);
+    this.playerGun = this.add.rectangle(this.W/2, this.H - 44, 5, 16, GB.darkest);
+    this.playerWingL = this.add.rectangle(this.W/2 - 30, this.H - 22, 10, 12, GB.darkest);
+    this.playerWingR = this.add.rectangle(this.W/2 + 30, this.H - 22, 10, 12, GB.darkest);
+    this.playerCockpit = this.add.rectangle(this.W/2, this.H - 30, 26, 10, GB.light);
+    // Thruster glow
+    this.thrusterL = this.add.rectangle(this.W/2 - 12, this.H - 15, 4, 8, GB.light).setAlpha(0.6);
+    this.thrusterR = this.add.rectangle(this.W/2 + 12, this.H - 15, 4, 8, GB.light).setAlpha(0.6);
 
-    // HUD
-    this.hudPnl = this.addText(4, 4, 'P&L:+0.0m', 11, GBS.darkest);
-    this.hudWave = this.addText(this.W - 4, 4, 'W1', 9, GBS.dark).setOrigin(1, 0);
-    this.hudStreak = this.addText(4, 20, '', 8, GBS.dark);
-    this.hudCity = this.addText(this.W/2, 4, 'SYDNEY', 8, GBS.dark).setOrigin(0.5, 0);
-    this.hudMiss = this.addText(this.W/2, 18, '', 8, GBS.dark).setOrigin(0.5, 0);
-    this.hudMulti = this.add.rectangle(0, 34, 0, 3, 0x224488).setOrigin(0, 0).setVisible(false);
+    // HUD - BIGGER fonts
+    this.hudPnl = this.txt(4, 4, 'P&L:+0.0m', 13, GBS.darkest);
+    this.hudWave = this.txt(this.W - 4, 4, 'W1', 11, GBS.dark).setOrigin(1, 0);
+    this.hudName = this.txt(this.W/2, 4, PLAYER_NAME || 'SYDNEY', 9, GBS.dark).setOrigin(0.5, 0);
+    this.hudStreak = this.txt(4, 22, '', 10, GBS.dark);
+    this.hudMiss = this.txt(this.W/2, 18, '', 9, GBS.dark).setOrigin(0.5, 0);
+    this.hudMulti = this.add.rectangle(0, 36, 0, 4, 0x2244aa).setOrigin(0, 0).setVisible(false);
 
-    // Lives display
+    // Lives — little ship icons
     this.livesGfx = [];
     for (let i = 0; i < 5; i++) {
-      this.livesGfx.push(this.add.rectangle(this.W - 16 - i*16, 20, 12, 10, GB.darkest));
+      let lx = this.W - 18 - i*18;
+      let body = this.add.rectangle(lx, 22, 14, 10, GB.darkest);
+      let gun = this.add.rectangle(lx, 16, 2, 6, GB.darkest);
+      this.livesGfx.push({ body, gun });
     }
 
-    // Banner
-    this.bannerBg = this.add.rectangle(this.W/2, this.H/2, this.W, 44, GB.darkest).setAlpha(0).setDepth(10);
-    this.bannerTxt = this.addText(this.W/2, this.H/2, '', 12, GBS.lightest).setOrigin(0.5, 0.5).setDepth(11).setAlpha(0);
+    // Event banner (bigger)
+    this.bannerBg = this.add.rectangle(this.W/2, this.H*0.35, this.W, 52, GB.darkest).setAlpha(0).setDepth(10);
+    this.bannerTxt = this.txt(this.W/2, this.H*0.35, '', 14, GBS.lightest).setOrigin(0.5, 0.5).setDepth(11).setAlpha(0);
 
-    // Event bar
-    this.eventBar = this.add.rectangle(0, this.H - 4, 0, 4, GB.dark).setOrigin(0, 0);
+    // Screen flash overlay (for events)
+    this.flashOverlay = this.add.rectangle(this.W/2, this.H/2, this.W, this.H, 0xffffff).setAlpha(0).setDepth(9);
+
+    // Event timer bar
+    this.eventBar = this.add.rectangle(0, this.H - 5, 0, 5, GB.dark).setOrigin(0, 0);
+
+    // Scanlines
+    this.add.tileSprite(0, 0, this.W, this.H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.4);
 
     // Tally overlay
-    this.tallyGroup = this.add.group();
     this.tallyBg = this.add.rectangle(this.W/2, this.H/2, this.W, this.H, 0x0f380f).setAlpha(0).setDepth(20);
     this.tallyTexts = [];
-    this.tallyGroup.add(this.tallyBg);
 
-    // Spawn timer
+    // Spawn timers
     this.spawnTimer = this.time.addEvent({ delay: 2200, callback: this.spawnInvader, callbackScope: this, loop: true });
     this.eventClock = this.time.addEvent({ delay: 8000, callback: this.maybeEvent, callbackScope: this, loop: true });
 
-    this.showBanner('WAVE 1 - WARMING UP');
+    // Wave intro
+    this.showWaveBanner(1);
 
     // Input
     this.moveLeft = false; this.moveRight = false;
@@ -217,10 +369,26 @@ class GameScene extends Phaser.Scene {
     this.keyP.on('down', () => this.toggleTally());
   }
 
-  addText(x, y, str, size, color) {
-    return this.add.text(x, y, str, {
-      fontFamily: '"Press Start 2P"', fontSize: size + 'px', color: color,
-    });
+  txt(x, y, str, size, color) {
+    return this.add.text(x, y, str, { fontFamily: '"Press Start 2P"', fontSize: size + 'px', color: color });
+  }
+
+  showWaveBanner(n) {
+    let label = WAVE_LABELS[Math.min(n-1, WAVE_LABELS.length-1)];
+    this.bannerTxt.setText('WAVE ' + n + '\n' + label);
+    this.bannerBg.setAlpha(0.92);
+    this.bannerTxt.setAlpha(1);
+    this.tweens.add({ targets: [this.bannerBg, this.bannerTxt], alpha: 0, delay: 1800, duration: 600 });
+  }
+
+  showBanner(msg) {
+    this.bannerTxt.setText(msg);
+    this.bannerBg.setAlpha(0.9);
+    this.bannerTxt.setAlpha(1);
+    // Screen flash
+    this.flashOverlay.setAlpha(0.25);
+    this.tweens.add({ targets: this.flashOverlay, alpha: 0, duration: 400 });
+    this.tweens.add({ targets: [this.bannerBg, this.bannerTxt], alpha: 0, delay: 1600, duration: 500 });
   }
 
   // ---- SPAWNING ----
@@ -233,74 +401,82 @@ class GameScene extends Phaser.Scene {
       size = ri(tc.min/50, Math.min(tc.max*2, 2000)/50) * 50;
     } else if (this.activeEvent && this.activeEvent.fx === 'small') {
       tc = rEl(ALL_TENORS);
-      size = ri(1, 4) * 50; // tiny
+      size = ri(1, 4) * 50;
     } else {
       tc = rEl(ALL_TENORS);
       size = ri(tc.min/50, tc.max/50) * 50;
     }
 
     let ccy = rEl(CCYS);
-    let baseSpd = 40 + this.wave * 5;
+    let baseSpd = 42 + this.wave * 5;
     if (this.activeEvent) {
       if (this.activeEvent.fx === 'accel' || this.activeEvent.fx === 'steep') baseSpd *= 1.5;
       if (this.activeEvent.fx === 'slow') baseSpd *= 0.4;
     }
 
     let hp = hpFor(size);
-    let invW = Math.min(this.W * 0.38, 140);
+    let invW = Math.min(this.W * 0.42, 150);
     let x = ri(invW/2 + 4, this.W - invW/2 - 4);
 
-    let bg = this.add.rectangle(x, -30, invW, 38, GB.darkest);
-    let label = this.addText(x - invW/2 + 8, -42, ccy + ' ' + tc.tenor, 9, GBS.bg);
-    let sizeLabel = this.addText(x - invW/2 + 8, -30, fmtSize(size), 8, GBS.bg);
+    let bg = this.add.rectangle(x, -34, invW, 42, GB.darkest);
+    let border = this.add.rectangle(x, -34, invW-2, 40).setStrokeStyle(1, GB.dark).setFillStyle();
+    let label = this.txt(x - invW/2 + 8, -48, ccy + ' ' + tc.tenor, 11, GBS.bg);
+    let sizeLabel = this.txt(x - invW/2 + 8, -34, fmtSize(size), 10, GBS.light);
 
     // HP bar
-    let hpBgBar = this.add.rectangle(x, -14, invW - 8, 4, 0x663333);
-    let hpBar = this.add.rectangle(x - (invW-8)/2, -14, invW - 8, 4, 0x44cc44).setOrigin(0, 0.5);
+    let hpBgBar = this.add.rectangle(x, -16, invW - 8, 5, 0x663333);
+    let hpBar = this.add.rectangle(x - (invW-8)/2, -16, invW - 8, 5, 0x44cc44).setOrigin(0, 0.5);
 
-    let inv = { bg, label, sizeLabel, hpBgBar, hpBar, ccy, tenor: tc.tenor, size, hp, maxHp: hp,
-                x, y: -30, w: invW, speed: baseSpd + Math.random()*20, alive: true, spawnTime: this.time.now };
+    let inv = { bg, border, label, sizeLabel, hpBgBar, hpBar, ccy, tenor: tc.tenor, size, hp, maxHp: hp,
+                x, y: -34, w: invW, speed: baseSpd + Math.random()*20, alive: true, spawnTime: this.time.now };
+
+    // Entry tween — slide in and settle
+    bg.setScale(0.8); border.setScale(0.8);
+    this.tweens.add({ targets: [bg, border], scale: 1, duration: 200, ease: 'Back.easeOut' });
 
     // Blink effect for excess bill supply
     if (this.activeEvent && this.activeEvent.fx === 'blink') {
-      this.tweens.add({ targets: bg, alpha: { from: 1, to: 0.2 }, duration: 150, yoyo: true, repeat: -1 });
+      this.tweens.add({ targets: [bg, border], alpha: { from: 1, to: 0.15 }, duration: 120, yoyo: true, repeat: -1 });
     }
 
     this.invaders.add(bg);
     bg._inv = inv;
-    bg._parts = [label, sizeLabel, hpBgBar, hpBar];
+    bg._parts = [border, label, sizeLabel, hpBgBar, hpBar];
   }
 
   spawnPowerup() {
     if (this.paused) return;
     let x = ri(50, this.W - 50);
-    let bg = this.add.rectangle(x, -24, Math.min(this.W*0.34, 130), 32, 0xddaa00);
-    let border = this.add.rectangle(x, -24, Math.min(this.W*0.34, 130) - 4, 28).setStrokeStyle(2, 0xffcc00).setFillStyle();
-    let label = this.addText(x - 50, -30, 'AXED PAYER!', 8, '#fff');
-    this.tweens.add({ targets: bg, alpha: { from: 1, to: 0.5 }, duration: 300, yoyo: true, repeat: -1 });
+    let pw_w = Math.min(this.W*0.38, 140);
+    let bg = this.add.rectangle(x, -28, pw_w, 36, 0xddaa00);
+    let border = this.add.rectangle(x, -28, pw_w - 4, 32).setStrokeStyle(2, 0xffee44).setFillStyle();
+    let label = this.txt(x - pw_w/2 + 10, -36, 'AXED PAYER!', 10, '#fff');
+    this.tweens.add({ targets: [bg, border], alpha: { from: 1, to: 0.4 }, duration: 250, yoyo: true, repeat: -1 });
 
-    let pw = { bg, border, label, x, y: -24, alive: true, speed: 30, w: Math.min(this.W*0.34, 130) };
+    let pw = { bg, border, label, x, y: -28, alive: true, speed: 32, w: pw_w };
     this.powerups.add(bg);
     bg._pw = pw;
     bg._parts = [border, label];
   }
 
   spawnOMO() {
-    // Big slow AUD O/N
     let tc = rEl(ON_TENORS);
-    let size = ri(30, 40) * 50; // 1500-2000
+    let size = ri(30, 40) * 50;
     let hp = 8;
-    let invW = Math.min(this.W * 0.45, 160);
+    let invW = Math.min(this.W * 0.48, 170);
     let x = ri(invW/2 + 4, this.W - invW/2 - 4);
 
-    let bg = this.add.rectangle(x, -40, invW, 44, 0x0f380f).setStrokeStyle(2, 0x8bac0f);
-    let label = this.addText(x - invW/2 + 8, -52, 'AUD ' + tc.tenor, 10, GBS.lightest);
-    let sizeLabel = this.addText(x - invW/2 + 8, -38, fmtSize(size), 9, GBS.lightest);
-    let hpBgBar = this.add.rectangle(x, -20, invW - 8, 5, 0x663333);
-    let hpBar = this.add.rectangle(x - (invW-8)/2, -20, invW - 8, 5, 0xcc4444).setOrigin(0, 0.5);
+    let bg = this.add.rectangle(x, -44, invW, 48, 0x0f380f).setStrokeStyle(3, 0x8bac0f);
+    let label = this.txt(x - invW/2 + 10, -58, 'AUD ' + tc.tenor, 12, GBS.lightest);
+    let sizeLabel = this.txt(x - invW/2 + 10, -42, fmtSize(size), 11, GBS.lightest);
+    let hpBgBar = this.add.rectangle(x, -22, invW - 8, 6, 0x663333);
+    let hpBar = this.add.rectangle(x - (invW-8)/2, -22, invW - 8, 6, 0xcc4444).setOrigin(0, 0.5);
+
+    // Pulse glow on OMO invaders
+    this.tweens.add({ targets: bg, alpha: { from: 1, to: 0.7 }, duration: 400, yoyo: true, repeat: -1 });
 
     let inv = { bg, label, sizeLabel, hpBgBar, hpBar, ccy:'AUD', tenor:tc.tenor, size, hp, maxHp:hp,
-                x, y:-40, w:invW, speed:18, alive:true, spawnTime:this.time.now };
+                x, y:-44, w:invW, speed:18, alive:true, spawnTime:this.time.now };
 
     this.invaders.add(bg);
     bg._inv = inv;
@@ -324,27 +500,10 @@ class GameScene extends Phaser.Scene {
     if (evt.fx === 'omo') {
       for (let i = 0; i < 3; i++) this.time.delayedCall(i * 600, () => this.spawnOMO());
     }
-    if (evt.fx === 'quake') {
-      this.cameras.main.shake(4000, 0.01);
-    }
-    if (evt.fx === 'chaos') {
-      this.cameras.main.shake(3000, 0.008);
-    }
-    if (evt.fx === 'wobbly') {
-      // handled in update
-    }
-
-    // Powerup chance on events
+    if (evt.fx === 'quake') this.cameras.main.shake(4000, 0.012);
+    if (evt.fx === 'chaos') this.cameras.main.shake(3000, 0.009);
     if (Math.random() < 0.3) this.spawnPowerup();
-
     this.time.delayedCall(evt.dur, () => { this.activeEvent = null; });
-  }
-
-  showBanner(msg) {
-    this.bannerTxt.setText(msg);
-    this.bannerBg.setAlpha(0.9);
-    this.bannerTxt.setAlpha(1);
-    this.tweens.add({ targets: [this.bannerBg, this.bannerTxt], alpha: 0, delay: 1500, duration: 500 });
   }
 
   // ---- SHOOTING ----
@@ -352,20 +511,23 @@ class GameScene extends Phaser.Scene {
     if (this.paused) return;
     if (this.bulletCD > 0) return;
 
-    let px = this.player.x, py = this.player.y - 16;
+    let px = this.player.x, py = this.player.y - 20;
     let col = isLHS ? 0xcc2222 : 0x2255cc;
 
     if (this.multiShot > 0) {
       this.bulletCD = 80;
-      for (let off of [-14, 0, 14]) {
-        let b = this.add.rectangle(px + off, py, 5, 12, col);
-        b._bul = { isLHS, alive: true };
+      for (let off of [-16, 0, 16]) {
+        let b = this.add.rectangle(px + off, py, 5, 14, col);
+        // Bullet glow trail
+        let trail = this.add.rectangle(px + off, py + 10, 3, 8, col).setAlpha(0.4);
+        b._bul = { isLHS, alive: true, trail };
         this.bullets.add(b);
       }
     } else {
       this.bulletCD = 180;
-      let b = this.add.rectangle(px, py, 5, 12, col);
-      b._bul = { isLHS, alive: true };
+      let b = this.add.rectangle(px, py, 5, 14, col);
+      let trail = this.add.rectangle(px, py + 10, 3, 8, col).setAlpha(0.4);
+      b._bul = { isLHS, alive: true, trail };
       this.bullets.add(b);
     }
   }
@@ -374,12 +536,10 @@ class GameScene extends Phaser.Scene {
   toggleTally() {
     this.paused = !this.paused;
     if (this.paused) {
-      this.physics && this.physics.pause && this.physics.pause();
       this.spawnTimer.paused = true;
       this.eventClock.paused = true;
       this.showTallyScreen();
     } else {
-      this.physics && this.physics.resume && this.physics.resume();
       this.spawnTimer.paused = false;
       this.eventClock.paused = false;
       this.hideTallyScreen();
@@ -387,42 +547,37 @@ class GameScene extends Phaser.Scene {
   }
 
   showTallyScreen() {
-    this.tallyBg.setAlpha(0.92).setDepth(20);
-    // Clear old
+    this.tallyBg.setAlpha(0.94).setDepth(20);
     this.tallyTexts.forEach(t => t.destroy());
     this.tallyTexts = [];
 
-    let y = 20;
-    let t1 = this.addText(this.W/2, y, 'TALLY / P&L', 13, GBS.lightest).setOrigin(0.5,0).setDepth(21);
-    this.tallyTexts.push(t1); y += 28;
+    let y = 16;
+    let push = (x, yy, str, sz, col, ox) => {
+      let t = this.txt(x, yy, str, sz, col).setDepth(21);
+      if (ox !== undefined) t.setOrigin(ox, 0);
+      this.tallyTexts.push(t);
+      return t;
+    };
 
-    let pnl = this.addText(this.W/2, y, 'P&L: +' + (this.score/1000).toFixed(1) + 'mio', 11, GBS.lightest).setOrigin(0.5,0).setDepth(21);
-    this.tallyTexts.push(pnl); y += 20;
-
-    let info = this.addText(this.W/2, y, 'W' + this.wave + '  STREAK ' + this.bestStreak + '  MISS ' + this.missed, 7, GBS.light).setOrigin(0.5,0).setDepth(21);
-    this.tallyTexts.push(info); y += 22;
+    push(this.W/2, y, 'TALLY / P&L', 15, GBS.lightest, 0.5); y += 32;
+    push(this.W/2, y, (PLAYER_NAME || 'TRADER') + ' @ SYDNEY', 9, GBS.light, 0.5); y += 20;
+    push(this.W/2, y, 'P&L: +' + (this.score/1000).toFixed(1) + 'mio', 13, GBS.lightest, 0.5); y += 24;
+    push(this.W/2, y, 'W' + this.wave + '  STREAK ' + this.bestStreak + '  MISS ' + this.missed, 9, GBS.light, 0.5); y += 28;
 
     let ccyList = Object.keys(this.tally);
     if (ccyList.length > 0) {
-      let hdr = this.addText(this.W/2, y, '-- HEDGE BOOK --', 8, GBS.light).setOrigin(0.5,0).setDepth(21);
-      this.tallyTexts.push(hdr); y += 18;
-
-      let colHdr = this.addText(8, y, 'CCY  LHS  RHS  VOL', 7, GBS.light).setDepth(21);
-      this.tallyTexts.push(colHdr); y += 14;
+      push(this.W/2, y, '-- HEDGE BOOK --', 10, GBS.light, 0.5); y += 22;
+      push(10, y, 'CCY  LHS RHS  VOL', 9, GBS.light); y += 18;
 
       let totL=0, totR=0, totV=0;
       ccyList.forEach(ccy => {
-        let t = this.tally[ccy];
-        totL += t.lhs; totR += t.rhs; totV += t.vol;
-        let row = this.addText(8, y, ccy+'  '+t.lhs+'    '+t.rhs+'    '+fmtSize(t.vol), 7, GBS.lightest).setDepth(21);
-        this.tallyTexts.push(row); y += 14;
+        let t = this.tally[ccy]; totL+=t.lhs; totR+=t.rhs; totV+=t.vol;
+        push(10, y, ccy+'  '+t.lhs+'   '+t.rhs+'   '+fmtSize(t.vol), 9, GBS.lightest); y += 17;
       });
-      y += 4;
-      let totRow = this.addText(8, y, 'TOT  '+totL+'    '+totR+'    '+fmtSize(totV), 7, GBS.light).setDepth(21);
-      this.tallyTexts.push(totRow);
+      y += 6;
+      push(10, y, 'TOT  '+totL+'   '+totR+'   '+fmtSize(totV), 9, GBS.light);
     } else {
-      let noT = this.addText(this.W/2, y, 'NO TRADES YET', 8, GBS.light).setOrigin(0.5,0).setDepth(21);
-      this.tallyTexts.push(noT);
+      push(this.W/2, y, 'NO TRADES YET', 10, GBS.light, 0.5);
     }
   }
 
@@ -432,6 +587,22 @@ class GameScene extends Phaser.Scene {
     this.tallyTexts = [];
   }
 
+  // ---- HIT FX ----
+  spawnHitFx(x, y, color, count) {
+    count = count || 8;
+    for (let i = 0; i < count; i++) {
+      let sz = ri(3, 7);
+      let p = this.add.rectangle(x, y, sz, sz, color);
+      let angle = Math.random() * Math.PI * 2;
+      let dist = 30 + Math.random() * 60;
+      this.tweens.add({
+        targets: p, x: x + Math.cos(angle)*dist, y: y + Math.sin(angle)*dist,
+        alpha: 0, scale: 0, rotation: Math.random()*3,
+        duration: 300 + Math.random()*300, onComplete: () => p.destroy()
+      });
+    }
+  }
+
   // ---- UPDATE ----
   update(time, delta) {
     if (this.paused) return;
@@ -439,19 +610,34 @@ class GameScene extends Phaser.Scene {
     this.bulletCD = Math.max(0, this.bulletCD - delta);
     if (this.multiShot > 0) this.multiShot -= delta;
 
+    // Scrolling bg dots
+    this.bgDots.forEach(d => {
+      d.y += 20 * (delta/1000);
+      if (d.y > this.H + 4) { d.y = -4; d.x = ri(0, this.W); }
+    });
+
+    // Thruster animation
+    this.thrusterTimer += delta;
+    let tFlicker = Math.sin(this.thrusterTimer * 0.02) * 0.3 + 0.5;
+    this.thrusterL.setAlpha(tFlicker);
+    this.thrusterR.setAlpha(tFlicker);
+    let tLen = 6 + Math.sin(this.thrusterTimer * 0.015) * 4;
+    this.thrusterL.setSize(4, tLen);
+    this.thrusterR.setSize(4, tLen);
+
     // Input
     let ml = this.moveLeft || this.cursors.left.isDown;
     let mr = this.moveRight || this.cursors.right.isDown;
-    let spd = 200 * (delta / 1000);
+    let spd = 220 * (delta / 1000);
     if (ml) this.movePlayer(-spd);
     if (mr) this.movePlayer(spd);
 
     if (Phaser.Input.Keyboard.JustDown(this.keyZ) || Phaser.Input.Keyboard.JustDown(this.keySpace)) this.fire(true);
     if (Phaser.Input.Keyboard.JustDown(this.keyX)) this.fire(false);
 
-    // Update multi-shot bar
+    // Multi-shot bar
     if (this.multiShot > 0) {
-      this.hudMulti.setVisible(true).setSize(this.W * (this.multiShot / 6000), 3);
+      this.hudMulti.setVisible(true).setSize(this.W * (this.multiShot / 6000), 4);
     } else {
       this.hudMulti.setVisible(false);
     }
@@ -459,16 +645,17 @@ class GameScene extends Phaser.Scene {
     // Event bar
     if (this.activeEvent) {
       let remain = Math.max(0, this.activeEvent.endTime - time);
-      this.eventBar.setSize(this.W * (remain / this.activeEvent.dur), 4);
+      this.eventBar.setSize(this.W * (remain / this.activeEvent.dur), 5);
     } else {
-      this.eventBar.setSize(0, 4);
+      this.eventBar.setSize(0, 5);
     }
 
     // Move bullets
     this.bullets.getChildren().slice().forEach(b => {
       if (!b._bul || !b._bul.alive) return;
-      b.y -= 400 * (delta / 1000);
-      if (b.y < -20) { b._bul.alive = false; b.destroy(); b._parts && b._parts.forEach(p=>p.destroy()); }
+      b.y -= 420 * (delta / 1000);
+      if (b._bul.trail) { b._bul.trail.x = b.x; b._bul.trail.y = b.y + 12; }
+      if (b.y < -20) { b._bul.alive = false; if (b._bul.trail) b._bul.trail.destroy(); b.destroy(); }
     });
 
     // Move powerups
@@ -479,15 +666,15 @@ class GameScene extends Phaser.Scene {
       bg._parts.forEach(p => p.y += pw.speed * (delta/1000));
       if (pw.y > this.H + 30) { pw.alive = false; bg.destroy(); bg._parts.forEach(p=>p.destroy()); }
 
-      // Bullet check
       this.bullets.getChildren().slice().forEach(bb => {
         if (!bb._bul || !bb._bul.alive || !pw.alive) return;
-        if (Math.abs(bb.x - bg.x) < pw.w/2 + 5 && Math.abs(bb.y - bg.y) < 20) {
-          bb._bul.alive = false; bb.destroy();
+        if (Math.abs(bb.x - bg.x) < pw.w/2 + 5 && Math.abs(bb.y - bg.y) < 22) {
+          bb._bul.alive = false; if (bb._bul.trail) bb._bul.trail.destroy(); bb.destroy();
           pw.alive = false; bg.destroy(); bg._parts.forEach(p=>p.destroy());
           this.multiShot = 6000;
-          this.showBanner('AXED PAYER! TRIPLE SHOT!');
-          this.spawnHitFx(bg.x, bg.y, 0xffcc00);
+          this.showBanner('AXED PAYER!\nTRIPLE SHOT!');
+          this.spawnHitFx(pw.x, pw.y, 0xffcc00, 15);
+          this.cameras.main.flash(200, 255, 200, 0);
         }
       });
     });
@@ -499,25 +686,33 @@ class GameScene extends Phaser.Scene {
       inv.y += inv.speed * (delta / 1000);
 
       let xOff = 0;
-      if (wobbly) xOff = Math.sin((time - inv.spawnTime) * 0.004) * 30;
+      if (wobbly) xOff = Math.sin((time - inv.spawnTime) * 0.004) * 35;
 
       bg.x = inv.x + xOff; bg.y = inv.y;
-      inv.label.setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y - 12);
-      inv.sizeLabel.setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y + 2);
-      inv.hpBgBar.setPosition(inv.x + xOff, inv.y + 15);
-      inv.hpBar.setPosition(inv.x - (inv.w-8)/2 + xOff, inv.y + 15);
-      inv.hpBar.setSize((inv.w - 8) * (inv.hp / inv.maxHp), inv.hpBar.height);
+      // Update all parts positions
+      let parts = bg._parts || [];
+      if (inv.border) { inv.border.x = inv.x + xOff; inv.border.y = inv.y; }
+      if (parts[0]) { parts[0].x = inv.x + xOff; parts[0].y = inv.y; } // border
+      if (parts[1]) parts[1].setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y - 14);  // label
+      if (parts[2]) parts[2].setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y + 0);   // size
+      if (inv.hpBgBar) inv.hpBgBar.setPosition(inv.x + xOff, inv.y + 17);
+      if (inv.hpBar) {
+        inv.hpBar.setPosition(inv.x - (inv.w-8)/2 + xOff, inv.y + 17);
+        inv.hpBar.setSize((inv.w - 8) * (inv.hp / inv.maxHp), inv.hpBar.height);
+      }
 
       // Hit player?
-      if (inv.y > this.H - 40 && inv.y < this.H - 10 &&
-          Math.abs((inv.x + xOff) - this.player.x) < (inv.w/2 + 24)) {
+      if (inv.y > this.H - 46 && inv.y < this.H - 10 &&
+          Math.abs((inv.x + xOff) - this.player.x) < (inv.w/2 + 26)) {
+        this.spawnHitFx(this.player.x, this.player.y, 0xcc2222, 12);
         this.killInvader(inv, bg);
         this.lives--;
         this.streak = 0;
         this.updateLives();
         this.showBanner('FILLED! OUCH!');
-        this.cameras.main.shake(300, 0.02);
-        if (this.lives <= 0) this.gameOver();
+        this.cameras.main.shake(400, 0.025);
+        this.cameras.main.flash(200, 200, 50, 50);
+        if (this.lives <= 0) { this.gameOver(); return; }
         return;
       }
 
@@ -526,19 +721,18 @@ class GameScene extends Phaser.Scene {
         this.killInvader(inv, bg);
         this.missed++; this.streak = 0;
         this.hudMiss.setText('MISS:' + this.missed);
-        // Float taunt
-        let taunt = this.addText(this.W/2, this.H - 40, rEl(MISS_TAUNTS), 9, '#883322').setOrigin(0.5,0.5);
-        this.tweens.add({ targets: taunt, y: this.H - 80, alpha: 0, duration: 1200, onComplete: () => taunt.destroy() });
+        let taunt = this.txt(this.W/2, this.H - 50, rEl(MISS_TAUNTS), 10, '#883322').setOrigin(0.5,0.5);
+        this.tweens.add({ targets: taunt, y: this.H - 90, alpha: 0, duration: 1200, onComplete: () => taunt.destroy() });
       }
 
       // Bullet collision
       this.bullets.getChildren().slice().forEach(bb => {
         if (!bb._bul || !bb._bul.alive || !inv.alive) return;
-        if (Math.abs(bb.x - (inv.x + xOff)) < inv.w/2 + 4 && Math.abs(bb.y - inv.y) < 22) {
-          bb._bul.alive = false; bb.destroy();
+        if (Math.abs(bb.x - (inv.x + xOff)) < inv.w/2 + 4 && Math.abs(bb.y - inv.y) < 24) {
+          bb._bul.alive = false; if (bb._bul.trail) bb._bul.trail.destroy(); bb.destroy();
           inv.hp--;
           if (inv.hp <= 0) {
-            // Killed
+            // KILLED
             this.streak++; if (this.streak > this.bestStreak) this.bestStreak = this.streak;
             let mult = Math.min(this.streak, 10);
             let pts = Math.floor(inv.size / 10) * mult;
@@ -550,28 +744,38 @@ class GameScene extends Phaser.Scene {
             this.tally[inv.ccy][side]++;
             this.tally[inv.ccy].vol += inv.size;
 
-            this.spawnHitFx(inv.x + xOff, inv.y, GB.light);
+            this.spawnHitFx(inv.x + xOff, inv.y, GB.light, 10);
 
-            let ft = this.addText(inv.x + xOff, inv.y - 10, '+' + pts, 11, GBS.darkest).setOrigin(0.5,0.5);
-            this.tweens.add({ targets: ft, y: inv.y - 50, alpha: 0, duration: 800, onComplete: () => ft.destroy() });
+            // Score popup with bounce
+            let ft = this.txt(inv.x + xOff, inv.y - 10, '+' + pts, 13, GBS.darkest).setOrigin(0.5,0.5);
+            ft.setScale(1.4);
+            this.tweens.add({ targets: ft, scale: 1, duration: 150 });
+            this.tweens.add({ targets: ft, y: inv.y - 60, alpha: 0, duration: 900, onComplete: () => ft.destroy() });
+
+            // Streak callout
+            if (this.streak >= 5 && this.streak % 5 === 0) {
+              let sc = this.txt(this.W/2, this.H*0.6, this.streak + 'x STREAK!', 14, GBS.darkest).setOrigin(0.5,0.5);
+              sc.setScale(0.5);
+              this.tweens.add({ targets: sc, scale: 1.2, duration: 200, yoyo: true });
+              this.tweens.add({ targets: sc, alpha: 0, y: this.H*0.5, delay: 600, duration: 400, onComplete: () => sc.destroy() });
+            }
 
             this.killInvader(inv, bg);
             this.updateHUD();
 
             if (this.waveKills >= this.waveTarget) {
               this.wave++; this.waveKills = 0; this.waveTarget = 8 + this.wave * 2;
-              let labels = ['WARMING UP','FLOW PICKING UP','GETTING BUSY','HEAVY FLOW','CARNAGE','FULL SEND'];
-              this.showBanner('WAVE ' + this.wave + ' - ' + labels[Math.min(this.wave-1, labels.length-1)]);
-              // Speed up spawns
+              this.showWaveBanner(this.wave);
               this.spawnTimer.delay = Math.max(800, 2200 - this.wave * 150);
+              // Flash on wave change
+              this.cameras.main.flash(300, 15, 56, 15);
             }
           } else {
-            // Hit but not dead — flash
-            this.tweens.add({ targets: bg, alpha: { from: 0.3, to: 1 }, duration: 120 });
-            this.spawnHitFx(bb.x, bb.y, GB.light);
-
-            let ht = this.addText(inv.x + xOff, inv.y - 16, inv.hp + ' LEFT', 7, GBS.darkest).setOrigin(0.5,0.5);
-            this.tweens.add({ targets: ht, y: inv.y - 40, alpha: 0, duration: 600, onComplete: () => ht.destroy() });
+            // Hit but not dead
+            this.tweens.add({ targets: bg, alpha: { from: 0.2, to: 1 }, duration: 100 });
+            this.spawnHitFx(bb.x, bb.y, GB.light, 4);
+            let ht = this.txt(inv.x + xOff, inv.y - 18, inv.hp + ' LEFT', 9, GBS.darkest).setOrigin(0.5,0.5);
+            this.tweens.add({ targets: ht, y: inv.y - 44, alpha: 0, duration: 600, onComplete: () => ht.destroy() });
           }
         }
       });
@@ -581,31 +785,20 @@ class GameScene extends Phaser.Scene {
   }
 
   movePlayer(dx) {
-    let nx = Phaser.Math.Clamp(this.player.x + dx, 24, this.W - 24);
+    let nx = Phaser.Math.Clamp(this.player.x + dx, 30, this.W - 30);
     this.player.x = nx;
     this.playerGun.x = nx;
-    this.playerWingL.x = nx - 28;
-    this.playerWingR.x = nx + 28;
+    this.playerWingL.x = nx - 30;
+    this.playerWingR.x = nx + 30;
     this.playerCockpit.x = nx;
-  }
-
-  spawnHitFx(x, y, color) {
-    for (let i = 0; i < 6; i++) {
-      let p = this.add.rectangle(x, y, 4, 4, color);
-      let angle = Math.random() * Math.PI * 2;
-      let dist = 30 + Math.random() * 50;
-      this.tweens.add({
-        targets: p, x: x + Math.cos(angle)*dist, y: y + Math.sin(angle)*dist,
-        alpha: 0, scale: 0, duration: 350 + Math.random()*200,
-        onComplete: () => p.destroy()
-      });
-    }
+    this.thrusterL.x = nx - 12;
+    this.thrusterR.x = nx + 12;
   }
 
   killInvader(inv, bg) {
     inv.alive = false;
     bg.destroy();
-    bg._parts.forEach(p => p.destroy());
+    if (bg._parts) bg._parts.forEach(p => { try { p.destroy(); } catch(e){} });
   }
 
   updateHUD() {
@@ -615,50 +808,21 @@ class GameScene extends Phaser.Scene {
   }
 
   updateLives() {
-    this.livesGfx.forEach((g, i) => g.setVisible(i < this.lives));
+    this.livesGfx.forEach((g, i) => {
+      let vis = i < this.lives;
+      g.body.setVisible(vis);
+      g.gun.setVisible(vis);
+    });
   }
 
   gameOver() {
-    let hs = parseInt(localStorage.getItem('stirboy_hi') || '0');
-    if (this.score > hs) localStorage.setItem('stirboy_hi', this.score.toString());
-    this.scene.start('GameOver', { score: this.score, wave: this.wave, streak: this.bestStreak, missed: this.missed, tally: this.tally, hi: Math.max(this.score, hs) });
-  }
-}
-
-// ---- TITLE SCENE ----
-class TitleScene extends Phaser.Scene {
-  constructor() { super('Title'); }
-  create() {
-    let W = this.scale.width, H = this.scale.height;
-    this.cameras.main.setBackgroundColor(GB.bg);
-
-    let t1 = this.add.text(W/2, H*0.15, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:'22px', color:GBS.darkest }).setOrigin(0.5);
-    let t2 = this.add.text(W/2, H*0.23, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.darkest }).setOrigin(0.5);
-    this.tweens.add({ targets: [t1,t2], y: '+=4', duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-
-    // Ccys
-    let gap = W / (CCYS.length + 1);
-    CCYS.forEach((ccy, i) => {
-      let bx = this.add.rectangle(gap*(i+1), H*0.34, 42, 20, GB.darkest);
-      let tx = this.add.text(gap*(i+1), H*0.34, ccy, { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.bg }).setOrigin(0.5);
-      this.tweens.add({ targets: [bx,tx], y: '+=8', duration: 600, yoyo:true, repeat:-1, delay: i*120, ease:'Sine.easeInOut' });
+    let hi = 0;
+    try { hi = parseInt(localStorage.getItem('stirboy_hi') || '0'); } catch(e){}
+    if (this.score > hi) { try { localStorage.setItem('stirboy_hi', this.score.toString()); } catch(e){} }
+    this.scene.start('GameOver', {
+      score: this.score, wave: this.wave, streak: this.bestStreak,
+      missed: this.missed, tally: this.tally, hi: Math.max(this.score, hi), name: PLAYER_NAME
     });
-
-    let blink = this.add.text(W/2, H*0.48, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:'13px', color:GBS.dark }).setOrigin(0.5);
-    this.tweens.add({ targets: blink, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
-
-    let lines = ['SHOOT TRADES WITH','LHS OR RHS','','BIG SIZES = MORE HITS','SHOOT AXED PAYER FOR','TRIPLE SHOT POWERUP!'];
-    lines.forEach((l,i) => {
-      this.add.text(W/2, H*0.58 + i*17, l, { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.dark }).setOrigin(0.5);
-    });
-
-    let hi = parseInt(localStorage.getItem('stirboy_hi') || '0');
-    if (hi > 0) {
-      this.add.text(W/2, H*0.93, 'BEST: +' + (hi/1000).toFixed(1) + 'mio', { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.dark }).setOrigin(0.5);
-    }
-
-    this.input.once('pointerdown', () => this.scene.start('Game'));
-    this.input.keyboard.once('keydown-ENTER', () => this.scene.start('Game'));
   }
 }
 
@@ -669,44 +833,79 @@ class GameOverScene extends Phaser.Scene {
     let W = this.scale.width, H = this.scale.height;
     this.cameras.main.setBackgroundColor(GB.bg);
 
-    this.add.rectangle(W/2, H/2, W*0.92, H*0.85, GB.darkest, 1).setStrokeStyle(2, GB.light);
+    // Scanlines
+    this.add.tileSprite(0, 0, W, H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.4);
 
-    let y = H*0.12;
-    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:'16px', color:GBS.lightest }).setOrigin(0.5);
-    y += 35;
-    this.add.text(W/2, y, 'P&L: +' + (data.score/1000).toFixed(1) + 'mio', { fontFamily:'"Press Start 2P"', fontSize:'11px', color:GBS.lightest }).setOrigin(0.5);
-    y += 22;
-    this.add.text(W/2, y, 'WAVE '+data.wave+'  STREAK '+data.streak, { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.light }).setOrigin(0.5);
-    y += 18;
-    this.add.text(W/2, y, 'MISSED: '+data.missed, { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.light }).setOrigin(0.5);
-    y += 24;
+    // Panel
+    this.add.rectangle(W/2, H/2, W*0.94, H*0.88, GB.darkest).setStrokeStyle(3, GB.light);
+
+    let y = H*0.08;
+    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:'20px', color:GBS.lightest }).setOrigin(0.5);
+    y += 38;
+
+    if (data.name) {
+      this.add.text(W/2, y, data.name + ' @ SYDNEY', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
+      y += 22;
+    }
+
+    this.add.text(W/2, y, 'P&L: +' + (data.score/1000).toFixed(1) + 'mio', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.lightest }).setOrigin(0.5);
+    y += 28;
+    this.add.text(W/2, y, 'WAVE '+data.wave+'  STREAK '+data.streak, { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
+    y += 20;
+    this.add.text(W/2, y, 'MISSED: '+data.missed, { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
+    y += 28;
 
     let ccyList = Object.keys(data.tally || {});
     if (ccyList.length) {
-      this.add.text(W/2, y, '-- HEDGE BOOK --', { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.light }).setOrigin(0.5);
-      y += 16;
+      this.add.text(W/2, y, '-- HEDGE BOOK --', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
+      y += 20;
       let totL=0,totR=0,totV=0;
       ccyList.forEach(ccy => {
         let t = data.tally[ccy]; totL+=t.lhs; totR+=t.rhs; totV+=t.vol;
-        this.add.text(10, y, ccy+'  L:'+t.lhs+'  R:'+t.rhs+'  '+fmtSize(t.vol), { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.lightest });
-        y += 14;
+        this.add.text(14, y, ccy+'  L:'+t.lhs+' R:'+t.rhs+' '+fmtSize(t.vol), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.lightest });
+        y += 16;
       });
-      y += 4;
-      this.add.text(10, y, 'TOT  L:'+totL+'  R:'+totR+'  '+fmtSize(totV), { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.light });
-      y += 20;
+      y += 6;
+      this.add.text(14, y, 'TOT L:'+totL+' R:'+totR+' '+fmtSize(totV), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.light });
+      y += 24;
     }
 
     if (data.score >= data.hi) {
-      let nt = this.add.text(W/2, y, 'NEW HIGH SCORE!', { fontFamily:'"Press Start 2P"', fontSize:'9px', color:'#ffcc00' }).setOrigin(0.5);
-      this.tweens.add({ targets: nt, scale: 1.1, duration: 400, yoyo: true, repeat: -1 });
+      let nt = this.add.text(W/2, y, 'NEW HIGH SCORE!', { fontFamily:'"Press Start 2P"', fontSize:'11px', color:'#ffcc00' }).setOrigin(0.5);
+      this.tweens.add({ targets: nt, scale: { from: 1, to: 1.15 }, duration: 400, yoyo: true, repeat: -1 });
     }
 
-    let cont = this.add.text(W/2, H*0.88, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:'8px', color:GBS.lightest }).setOrigin(0.5);
+    let cont = this.add.text(W/2, H*0.90, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.lightest }).setOrigin(0.5);
     this.tweens.add({ targets: cont, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
 
     this.input.once('pointerdown', () => this.scene.start('Title'));
     this.input.keyboard.once('keydown-ENTER', () => this.scene.start('Title'));
   }
+}
+
+// ---- NAME ENTRY ----
+let nameCallback = null;
+
+function showNameEntry(cb) {
+  nameCallback = cb || null;
+  let overlay = document.getElementById('nameOverlay');
+  let input = document.getElementById('nameInput');
+  overlay.classList.add('show');
+  input.value = PLAYER_NAME;
+  input.focus();
+}
+
+document.getElementById('nameOk').addEventListener('click', submitName);
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+
+function submitName() {
+  let input = document.getElementById('nameInput');
+  let name = input.value.trim().toUpperCase().replace(/[^A-Z0-9 ]/g, '').substring(0, 8);
+  if (!name) name = 'TRADER';
+  PLAYER_NAME = name;
+  try { localStorage.setItem('stirboy_name', name); } catch(e){}
+  document.getElementById('nameOverlay').classList.remove('show');
+  if (nameCallback) { nameCallback(); nameCallback = null; }
 }
 
 // ---- INIT ----
@@ -721,7 +920,7 @@ function initGame() {
     parent: 'game-container',
     backgroundColor: '#9bbc0f',
     scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene: [TitleScene, GameScene, GameOverScene],
+    scene: [BootScene, TitleScene, GameScene, GameOverScene],
   });
 
   // Wire up HTML buttons
@@ -769,7 +968,6 @@ function initGame() {
   document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
 }
 
-// Wait for font to load
 document.fonts.ready.then(initGame);
 </script>
 </body>
