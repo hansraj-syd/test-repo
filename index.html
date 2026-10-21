@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>STIRBoy Tomnexter v2</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>STIRBoy Tomnexter v3</title>
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -66,7 +69,6 @@
   .speaker { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 3px; transform: rotate(-25deg); }
   .speaker-line { width: 24px; height: 2px; background: #888; border-radius: 1px; }
 
-  /* Name input overlay */
   #nameOverlay {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.7); z-index: 100;
@@ -124,7 +126,6 @@
   <div class="speaker"><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div></div>
 </div>
 
-<!-- Name entry overlay -->
 <div id="nameOverlay">
   <label>ENTER YOUR NAME</label>
   <input id="nameInput" type="text" maxlength="8" placeholder="TRADER" autocomplete="off" autocapitalize="characters" spellcheck="false">
@@ -156,9 +157,8 @@ const DODGE_TAUNTS = [
   'WELL LEFT!','GOOD MISS!','SMART DODGE!','NICE READ!',
   'SHARP EYES!','GOOD INSTINCT!','STAYED COOL!','PRO MOVE!',
 ];
-const SQUEEZE_FX = ['accel','flood','quake']; // event fx types that spawn toxic trades
+const SQUEEZE_FX = ['accel','flood','quake'];
 
-// Tenor → month-equivalents for pricing
 const TENOR_MONTHS = {
   'T/N':0, 'S/N':0, '1W':0.25, '2W':0.5,
   '1M':1, '2M':2, '3M':3, '6M':6, '9M':9, '1Y':12, '2Y':24,
@@ -166,11 +166,9 @@ const TENOR_MONTHS = {
 };
 
 function calcPnl(tenor, size) {
-  // T/N, S/N = flat $200 per trade
   if (tenor === 'T/N' || tenor === 'S/N') return 200;
-  // Others = $100 per 100m per month-equivalent
   let months = TENOR_MONTHS[tenor] || 1;
-  let units = size / 100; // how many 100m blocks
+  let units = size / 100;
   return Math.round(units * months * 100);
 }
 const WAVE_LABELS = ['WARMING UP','FLOW PICKING UP','GETTING BUSY','HEAVY FLOW','CARNAGE','FULL SEND'];
@@ -191,7 +189,6 @@ const EVENTS = [
   { name:'EXCESS BILL SUPPLY!', fx:'blink', dur:5000 },
 ];
 
-// Player name (persisted in localStorage)
 let PLAYER_NAME = '';
 try { PLAYER_NAME = localStorage.getItem('stirboy_name') || ''; } catch(e){}
 
@@ -200,15 +197,22 @@ function ri(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
 function rEl(a) { return a[Math.floor(Math.random()*a.length)]; }
 function hpFor(size) { if(size>=1500) return 4; if(size>=1000) return 3; if(size>=500) return 2; return 1; }
 
-// ---- BOOT SCENE (create textures) ----
+// ========== RESPONSIVE HELPERS ==========
+// fs(W, base) — scale font to canvas width (ref 320px), clamped sensibly
+function fs(W, base) {
+  let s = Math.round(base * W / 320);
+  return Math.max(Math.ceil(base * 0.55), Math.min(s, Math.round(base * 1.6)));
+}
+// edge margin proportional to width
+function mg(W) { return Math.max(4, Math.round(W * 0.025)); }
+
+// ---- BOOT SCENE ----
 class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
   create() {
-    // Star texture
     let g = this.make.graphics({add:false});
     g.fillStyle(0x306230); g.fillRect(0,0,2,2);
     g.generateTexture('dot', 2, 2); g.destroy();
-    // Scanline texture
     let s = this.make.graphics({add:false});
     s.fillStyle(0x000000, 0.06);
     for (let i=0; i<200; i+=2) s.fillRect(0, i, 400, 1);
@@ -222,99 +226,96 @@ class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
   create() {
     let W = this.scale.width, H = this.scale.height;
+    let M = mg(W);
     this.cameras.main.setBackgroundColor(GB.bg);
 
-    // Scrolling dots bg
     this.dots = [];
     for (let i = 0; i < 30; i++) {
       let d = this.add.rectangle(ri(0,W), ri(0,H), 2, 2, GB.dark).setAlpha(0.3);
       this.dots.push(d);
     }
-
-    // Scanline overlay
     this.add.tileSprite(0, 0, W, H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.5);
 
-    // Use cursor-based layout: track y position as we go
-    let y = 14;
-    let lh = Math.min(18, H * 0.035); // line height scales with screen
+    // ---- cursor layout — y tracks downward ----
+    let y = Math.round(H * 0.03);
 
-    let t1 = this.add.text(W/2, y, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:'22px', color:GBS.darkest }).setOrigin(0.5, 0);
-    y += 32;
-    let t2 = this.add.text(W/2, y, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.dark }).setOrigin(0.5, 0);
-    y += 24;
-    this.tweens.add({ targets: [t1,t2], y: '+=4', duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // Title
+    let s1 = fs(W, 20);
+    let t1 = this.add.text(W/2, y, 'STIRBOY', { fontFamily:'"Press Start 2P"', fontSize:s1+'px', color:GBS.darkest }).setOrigin(0.5, 0);
+    y += s1 + Math.round(H * 0.015);
+    let s2 = fs(W, 13);
+    let t2 = this.add.text(W/2, y, 'TOMNEXTER', { fontFamily:'"Press Start 2P"', fontSize:s2+'px', color:GBS.dark }).setOrigin(0.5, 0);
+    y += s2 + Math.round(H * 0.015);
+    this.tweens.add({ targets:[t1,t2], y:'+=3', duration:900, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
 
     // Ccys parade
-    y += 6;
-    let ccyW = Math.min(40, (W - 20) / CCYS.length - 4);
-    let totalCcyW = CCYS.length * (ccyW + 4) - 4;
+    y += Math.round(H * 0.01);
+    let ccySz = fs(W, 7);
+    let ccyBoxH = ccySz + 10;
+    let maxCcyW = Math.floor((W - M*2 - (CCYS.length-1)*3) / CCYS.length);
+    let ccyW = Math.min(40, maxCcyW);
+    let totalCcyW = CCYS.length * (ccyW + 3) - 3;
     let ccyStartX = (W - totalCcyW) / 2 + ccyW/2;
     CCYS.forEach((ccy, i) => {
-      let cx = ccyStartX + i * (ccyW + 4);
-      let bx = this.add.rectangle(cx, y, ccyW, 20, GB.darkest);
-      let tx = this.add.text(cx, y, ccy, { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.bg }).setOrigin(0.5);
-      this.tweens.add({ targets: [bx,tx], y: '+=6', duration: 600, yoyo:true, repeat:-1, delay: i*100, ease:'Sine.easeInOut' });
+      let cx = ccyStartX + i * (ccyW + 3);
+      let bx = this.add.rectangle(cx, y, ccyW, ccyBoxH, GB.darkest);
+      let tx = this.add.text(cx, y, ccy, { fontFamily:'"Press Start 2P"', fontSize:ccySz+'px', color:GBS.bg }).setOrigin(0.5);
+      this.tweens.add({ targets:[bx,tx], y:'+=4', duration:600, yoyo:true, repeat:-1, delay:i*100, ease:'Sine.easeInOut' });
     });
-    y += 30;
+    y += ccyBoxH + Math.round(H * 0.025);
 
-    // Player name display
+    // Player name
     if (PLAYER_NAME) {
-      this.add.text(W/2, y, 'TRADER: ' + PLAYER_NAME, { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.darkest }).setOrigin(0.5, 0);
-      y += 16;
-      let chg = this.add.text(W/2, y, '[TAP TO CHANGE]', { fontFamily:'"Press Start 2P"', fontSize:'6px', color:GBS.dark }).setOrigin(0.5, 0).setInteractive();
+      let ns = fs(W, 9);
+      this.add.text(W/2, y, 'TRADER: '+PLAYER_NAME, { fontFamily:'"Press Start 2P"', fontSize:ns+'px', color:GBS.darkest }).setOrigin(0.5, 0);
+      y += ns + 5;
+      let cs = fs(W, 6);
+      let chg = this.add.text(W/2, y, '[TAP TO CHANGE]', { fontFamily:'"Press Start 2P"', fontSize:cs+'px', color:GBS.dark }).setOrigin(0.5, 0).setInteractive();
       chg.on('pointerdown', () => showNameEntry());
-      y += 14;
+      y += cs + Math.round(H * 0.02);
     }
 
     // TAP TO START
-    y += 6;
-    let blink = this.add.text(W/2, y, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:'12px', color:GBS.darkest }).setOrigin(0.5, 0);
-    this.tweens.add({ targets: blink, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
-    y += 24;
+    y += Math.round(H * 0.015);
+    let startSz = fs(W, 11);
+    let blink = this.add.text(W/2, y, 'TAP TO START', { fontFamily:'"Press Start 2P"', fontSize:startSz+'px', color:GBS.darkest }).setOrigin(0.5, 0);
+    this.tweens.add({ targets:blink, alpha:0.2, duration:500, yoyo:true, repeat:-1 });
+    y += startSz + Math.round(H * 0.025);
 
-    // Instructions — compact
-    let instLines = [
-      'SHOOT TRADES: LHS / RHS',
-      'BIG SIZES = MORE HP',
-      'AXED PAYER = POWERUP!',
-      '☠ DODGE TOXIC TRADES!',
-    ];
-    instLines.forEach((l) => {
-      this.add.text(W/2, y, l, { fontFamily:'"Press Start 2P"', fontSize:'7px', color:GBS.dark }).setOrigin(0.5, 0);
-      y += lh;
-    });
-
-    // High score — anchored to bottom
-    let hi = 0; try { hi = parseInt(localStorage.getItem('stirboy_hi') || '0'); } catch(e){}
-    if (hi > 0) {
-      this.add.text(W/2, H - 28, 'BEST: $' + hi.toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.darkest }).setOrigin(0.5);
+    // Instructions — only if space permits
+    let instSz = fs(W, 6);
+    let instLh = instSz + Math.max(4, Math.round(H * 0.012));
+    let instLines = ['SHOOT TRADES: LHS / RHS','BIG SIZES = MORE HP','AXED PAYER = POWERUP!','☠ DODGE TOXIC TRADES!'];
+    let spaceLeft = H - y - Math.round(H * 0.1);
+    if (spaceLeft > instLines.length * instLh + 8) {
+      instLines.forEach(l => {
+        this.add.text(W/2, y, l, { fontFamily:'"Press Start 2P"', fontSize:instSz+'px', color:GBS.dark,
+          wordWrap:{width:W-M*2, useAdvancedWrap:true} }).setOrigin(0.5, 0);
+        y += instLh;
+      });
     }
-    this.add.text(W/2, H - 12, 'v2 PHASER', { fontFamily:'"Press Start 2P"', fontSize:'6px', color:GBS.dark }).setOrigin(0.5);
 
-    // Tap-to-start zone (avoid name-change link)
-    let nameZoneTop = PLAYER_NAME ? 76 + 30 : 0;
-    let nameZoneBot = PLAYER_NAME ? nameZoneTop + 30 : 0;
-    this.input.once('pointerdown', (p) => {
-      if (PLAYER_NAME && p.y > nameZoneTop && p.y < nameZoneBot) return;
-      this.startGame();
-    });
+    // Bottom-anchored: high score + version
+    let hiSz = fs(W, 9);
+    let verSz = fs(W, 6);
+    let hi = 0; try { hi = parseInt(localStorage.getItem('stirboy_hi')||'0'); } catch(e){}
+    if (hi > 0) {
+      this.add.text(W/2, H - hiSz - verSz - 10, 'BEST: $'+hi.toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:hiSz+'px', color:GBS.darkest }).setOrigin(0.5);
+    }
+    this.add.text(W/2, H - verSz - 3, 'v3 PHASER', { fontFamily:'"Press Start 2P"', fontSize:verSz+'px', color:GBS.dark }).setOrigin(0.5);
+
+    this.input.once('pointerdown', () => this.startGame());
     this.input.keyboard.once('keydown-ENTER', () => this.startGame());
   }
 
   startGame() {
-    if (!PLAYER_NAME) {
-      showNameEntry(() => this.scene.start('Game'));
-    } else {
-      this.scene.start('Game');
-    }
+    if (!PLAYER_NAME) { showNameEntry(() => this.scene.start('Game')); }
+    else { this.scene.start('Game'); }
   }
 
   update(time, delta) {
     let H = this.scale.height;
-    this.dots.forEach(d => {
-      d.y += 15 * (delta/1000);
-      if (d.y > H + 4) { d.y = -4; d.x = ri(0, this.scale.width); }
-    });
+    this.dots.forEach(d => { d.y += 15*(delta/1000); if(d.y>H+4){d.y=-4;d.x=ri(0,this.scale.width);} });
   }
 }
 
@@ -325,82 +326,92 @@ class GameScene extends Phaser.Scene {
   create() {
     this.W = this.scale.width;
     this.H = this.scale.height;
+    this.M = mg(this.W);
 
-    this.score = 0; this.lives = 5; this.wave = 1;
-    this.streak = 0; this.bestStreak = 0; this.missed = 0;
-    this.waveKills = 0; this.waveTarget = 8;
-    this.multiShot = 0; this.bulletCD = 0;
-    this.tally = {};
-    this.activeEvent = null;
-    this.paused = false;
-    this.thrusterTimer = 0;
+    this.score=0; this.lives=5; this.wave=1;
+    this.streak=0; this.bestStreak=0; this.missed=0;
+    this.waveKills=0; this.waveTarget=8;
+    this.multiShot=0; this.bulletCD=0;
+    this.tally={}; this.activeEvent=null; this.paused=false; this.thrusterTimer=0;
 
-    // Scrolling dots background
+    // Background dots
     this.bgDots = [];
-    for (let i = 0; i < 25; i++) {
+    for (let i=0;i<25;i++) {
       let d = this.add.rectangle(ri(0,this.W), ri(0,this.H), 2, 2, GB.dark).setAlpha(0.25);
       this.bgDots.push(d);
     }
 
-    // Groups
     this.invaders = this.add.group();
     this.bullets = this.add.group();
     this.powerups = this.add.group();
 
-    // Player ship
-    this.playerParts = [];
-    this.player = this.add.rectangle(this.W/2, this.H - 28, 52, 22, GB.darkest);
-    this.playerGun = this.add.rectangle(this.W/2, this.H - 44, 5, 16, GB.darkest);
-    this.playerWingL = this.add.rectangle(this.W/2 - 30, this.H - 22, 10, 12, GB.darkest);
-    this.playerWingR = this.add.rectangle(this.W/2 + 30, this.H - 22, 10, 12, GB.darkest);
-    this.playerCockpit = this.add.rectangle(this.W/2, this.H - 30, 26, 10, GB.light);
-    // Thruster glow
-    this.thrusterL = this.add.rectangle(this.W/2 - 12, this.H - 15, 4, 8, GB.light).setAlpha(0.6);
-    this.thrusterR = this.add.rectangle(this.W/2 + 12, this.H - 15, 4, 8, GB.light).setAlpha(0.6);
+    // Player ship — bottom, with safe margin
+    let shipY = this.H - Math.max(24, Math.round(this.H * 0.06));
+    let shipW = Math.min(52, Math.round(this.W * 0.18));
+    let wingOff = Math.round(shipW/2) + 4;
+    this.player = this.add.rectangle(this.W/2, shipY, shipW, 22, GB.darkest);
+    this.playerGun = this.add.rectangle(this.W/2, shipY-16, 5, 16, GB.darkest);
+    this.playerWingL = this.add.rectangle(this.W/2-wingOff, shipY+6, 10, 12, GB.darkest);
+    this.playerWingR = this.add.rectangle(this.W/2+wingOff, shipY+6, 10, 12, GB.darkest);
+    this.playerCockpit = this.add.rectangle(this.W/2, shipY-2, Math.round(shipW/2), 10, GB.light);
+    this.thrusterL = this.add.rectangle(this.W/2-12, shipY+13, 4, 8, GB.light).setAlpha(0.6);
+    this.thrusterR = this.add.rectangle(this.W/2+12, shipY+13, 4, 8, GB.light).setAlpha(0.6);
+    this._shipY = shipY;
+    this._wingOff = wingOff;
 
-    // HUD - BIGGER fonts
-    this.hudName = this.txt(this.W/2, 3, PLAYER_NAME || 'SYDNEY', 8, GBS.dark).setOrigin(0.5, 0);
-    this.hudPnl = this.txt(4, 16, 'P&L: $0', 13, GBS.darkest);
-    this.hudWave = this.txt(this.W - 4, 16, 'W1', 11, GBS.dark).setOrigin(1, 0);
-    this.hudStreak = this.txt(4, 34, '', 10, GBS.dark);
-    this.hudMiss = this.txt(this.W/2, 34, '', 9, GBS.dark).setOrigin(0.5, 0);
-    this.hudMulti = this.add.rectangle(0, 48, 0, 4, 0x2244aa).setOrigin(0, 0).setVisible(false);
+    // === HUD — 3 clear rows, all scaled, no overlaps ===
+    // Row 1 (y=3): player name, centered
+    let r1sz = fs(this.W, 7);
+    this.hudName = this.txt(this.W/2, 3, PLAYER_NAME||'SYDNEY', r1sz, GBS.dark).setOrigin(0.5,0);
 
-    // Lives — little ship icons
+    // Row 2: P&L left, wave right
+    let r2y = r1sz + 7;
+    let pnlSz = fs(this.W, 11);
+    let waveSz = fs(this.W, 10);
+    this.hudPnl = this.txt(this.M, r2y, 'P&L: $0', pnlSz, GBS.darkest);
+    this.hudWave = this.txt(this.W-this.M, r2y, 'W1', waveSz, GBS.dark).setOrigin(1,0);
+
+    // Row 3: streak left, miss center, lives icons right
+    let r3y = r2y + Math.max(pnlSz, waveSz) + 4;
+    let streakSz = fs(this.W, 8);
+    let missSz = fs(this.W, 7);
+    this.hudStreak = this.txt(this.M, r3y, '', streakSz, GBS.dark);
+    this.hudMiss = this.txt(this.W/2, r3y, '', missSz, GBS.dark).setOrigin(0.5,0);
+
+    // Multi-shot bar
+    let mBarY = r3y + streakSz + 3;
+    this.hudMulti = this.add.rectangle(0, mBarY, 0, 3, 0x2244aa).setOrigin(0,0).setVisible(false);
+
+    // Lives icons — right side of row 3
+    let lifeW = Math.min(14, Math.round(this.W * 0.04));
+    let lifeGap = lifeW + 3;
     this.livesGfx = [];
-    for (let i = 0; i < 5; i++) {
-      let lx = this.W - 18 - i*18;
-      let body = this.add.rectangle(lx, 22, 14, 10, GB.darkest);
-      let gun = this.add.rectangle(lx, 16, 2, 6, GB.darkest);
-      this.livesGfx.push({ body, gun });
+    for (let i=0;i<5;i++) {
+      let lx = this.W - this.M - 4 - i*lifeGap;
+      let ly = r3y + Math.round(streakSz*0.5);
+      let body = this.add.rectangle(lx, ly, lifeW, Math.round(lifeW*0.7), GB.darkest);
+      let gun = this.add.rectangle(lx, ly - Math.round(lifeW*0.5), 2, Math.round(lifeW*0.4), GB.darkest);
+      this.livesGfx.push({body,gun});
     }
 
-    // Event banner (bigger)
-    this.bannerBg = this.add.rectangle(this.W/2, this.H*0.35, this.W, 52, GB.darkest).setAlpha(0).setDepth(10);
-    this.bannerTxt = this.txt(this.W/2, this.H*0.35, '', 14, GBS.lightest).setOrigin(0.5, 0.5).setDepth(11).setAlpha(0);
+    // Banner
+    let banSz = fs(this.W, 12);
+    this.bannerBg = this.add.rectangle(this.W/2, this.H*0.35, this.W, banSz*3+16, GB.darkest).setAlpha(0).setDepth(10);
+    this.bannerTxt = this.txt(this.W/2, this.H*0.35, '', banSz, GBS.lightest).setOrigin(0.5,0.5).setDepth(11).setAlpha(0);
+    this.bannerTxt.setWordWrapWidth(this.W - this.M*4);
 
-    // Screen flash overlay (for events)
     this.flashOverlay = this.add.rectangle(this.W/2, this.H/2, this.W, this.H, 0xffffff).setAlpha(0).setDepth(9);
-
-    // Event timer bar
-    this.eventBar = this.add.rectangle(0, this.H - 5, 0, 5, GB.dark).setOrigin(0, 0);
-
-    // Scanlines
+    this.eventBar = this.add.rectangle(0, this.H-4, 0, 4, GB.dark).setOrigin(0,0);
     this.add.tileSprite(0, 0, this.W, this.H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.4);
 
-    // Tally overlay
     this.tallyBg = this.add.rectangle(this.W/2, this.H/2, this.W, this.H, 0x0f380f).setAlpha(0).setDepth(20);
     this.tallyTexts = [];
 
-    // Spawn timers
-    this.spawnTimer = this.time.addEvent({ delay: 2200, callback: this.spawnInvader, callbackScope: this, loop: true });
-    this.eventClock = this.time.addEvent({ delay: 8000, callback: this.maybeEvent, callbackScope: this, loop: true });
-
-    // Wave intro
+    this.spawnTimer = this.time.addEvent({ delay:2200, callback:this.spawnInvader, callbackScope:this, loop:true });
+    this.eventClock = this.time.addEvent({ delay:8000, callback:this.maybeEvent, callbackScope:this, loop:true });
     this.showWaveBanner(1);
 
-    // Input
-    this.moveLeft = false; this.moveRight = false;
+    this.moveLeft=false; this.moveRight=false;
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keyZ = this.input.keyboard.addKey('Z');
     this.keyX = this.input.keyboard.addKey('X');
@@ -410,59 +421,49 @@ class GameScene extends Phaser.Scene {
   }
 
   txt(x, y, str, size, color) {
-    return this.add.text(x, y, str, { fontFamily: '"Press Start 2P"', fontSize: size + 'px', color: color });
+    return this.add.text(x, y, str, { fontFamily:'"Press Start 2P"', fontSize:size+'px', color:color });
   }
 
   showWaveBanner(n) {
     let label = WAVE_LABELS[Math.min(n-1, WAVE_LABELS.length-1)];
-    this.bannerTxt.setText('WAVE ' + n + '\n' + label);
-    this.bannerBg.setAlpha(0.92);
-    this.bannerTxt.setAlpha(1);
-    this.tweens.add({ targets: [this.bannerBg, this.bannerTxt], alpha: 0, delay: 1800, duration: 600 });
+    this.bannerTxt.setText('WAVE '+n+'\n'+label);
+    this.bannerBg.setAlpha(0.92); this.bannerTxt.setAlpha(1);
+    this.tweens.add({ targets:[this.bannerBg,this.bannerTxt], alpha:0, delay:1800, duration:600 });
   }
 
   showBanner(msg) {
     this.bannerTxt.setText(msg);
-    this.bannerBg.setAlpha(0.9);
-    this.bannerTxt.setAlpha(1);
-    // Screen flash
+    this.bannerBg.setAlpha(0.9); this.bannerTxt.setAlpha(1);
     this.flashOverlay.setAlpha(0.25);
-    this.tweens.add({ targets: this.flashOverlay, alpha: 0, duration: 400 });
-    this.tweens.add({ targets: [this.bannerBg, this.bannerTxt], alpha: 0, delay: 1600, duration: 500 });
+    this.tweens.add({ targets:this.flashOverlay, alpha:0, duration:400 });
+    this.tweens.add({ targets:[this.bannerBg,this.bannerTxt], alpha:0, delay:1600, duration:500 });
   }
 
   // ---- SPAWNING ----
   spawnInvader() {
     if (this.paused) return;
     let tc, size;
-
-    if (this.activeEvent && this.activeEvent.fx === 'steep') {
-      tc = rEl(LONG_TENORS);
-      size = ri(tc.min/50, Math.min(tc.max*2, 2000)/50) * 50;
-    } else if (this.activeEvent && this.activeEvent.fx === 'small') {
-      tc = rEl(ALL_TENORS);
-      size = ri(1, 4) * 50;
+    if (this.activeEvent && this.activeEvent.fx==='steep') {
+      tc = rEl(LONG_TENORS); size = ri(tc.min/50, Math.min(tc.max*2,2000)/50)*50;
+    } else if (this.activeEvent && this.activeEvent.fx==='small') {
+      tc = rEl(ALL_TENORS); size = ri(1,4)*50;
     } else {
-      tc = rEl(ALL_TENORS);
-      size = ri(tc.min/50, tc.max/50) * 50;
+      tc = rEl(ALL_TENORS); size = ri(tc.min/50, tc.max/50)*50;
     }
 
     let ccy = rEl(CCYS);
-    let baseSpd = 42 + this.wave * 5;
+    let baseSpd = 42 + this.wave*5;
     if (this.activeEvent) {
-      if (this.activeEvent.fx === 'accel' || this.activeEvent.fx === 'steep') baseSpd *= 1.5;
-      if (this.activeEvent.fx === 'slow') baseSpd *= 0.4;
+      if (this.activeEvent.fx==='accel'||this.activeEvent.fx==='steep') baseSpd*=1.5;
+      if (this.activeEvent.fx==='slow') baseSpd*=0.4;
     }
 
     let hp = hpFor(size);
-    let invW = Math.min(this.W * 0.42, 150);
-    let x = ri(invW/2 + 4, this.W - invW/2 - 4);
+    let invW = Phaser.Math.Clamp(Math.round(this.W*0.42), 80, 150);
+    let x = ri(invW/2+this.M, this.W-invW/2-this.M);
 
-    // Is this a toxic trade? ~35% chance during squeeze events
     let isToxic = false;
-    if (this.activeEvent && SQUEEZE_FX.includes(this.activeEvent.fx) && Math.random() < 0.35) {
-      isToxic = true;
-    }
+    if (this.activeEvent && SQUEEZE_FX.includes(this.activeEvent.fx) && Math.random()<0.35) isToxic = true;
 
     let bgColor = isToxic ? GB.lightest : GB.darkest;
     let textColor = isToxic ? GBS.darkest : GBS.bg;
@@ -470,33 +471,33 @@ class GameScene extends Phaser.Scene {
     let borderColor = isToxic ? 0xcc2222 : GB.dark;
     let hpBarColor = isToxic ? 0xcc2222 : 0x44cc44;
 
-    let bg = this.add.rectangle(x, -34, invW, 42, bgColor);
-    let border = this.add.rectangle(x, -34, invW-2, 40).setStrokeStyle(isToxic ? 3 : 1, borderColor).setFillStyle();
-    let labelStr = isToxic ? '☠ ' + ccy + ' ' + tc.tenor : ccy + ' ' + tc.tenor;
-    let label = this.txt(x - invW/2 + 8, -48, labelStr, 11, textColor);
-    let sizeLabel = this.txt(x - invW/2 + 8, -34, fmtSize(size), 10, sizeColor);
+    let lSz = fs(this.W, 9);
+    let sSz = fs(this.W, 8);
+    let invH = lSz + sSz + 16;
 
-    // HP bar
-    let hpBgBar = this.add.rectangle(x, -16, invW - 8, 5, 0x663333);
-    let hpBar = this.add.rectangle(x - (invW-8)/2, -16, invW - 8, 5, hpBarColor).setOrigin(0, 0.5);
+    let bg = this.add.rectangle(x, -invH/2, invW, invH, bgColor);
+    let border = this.add.rectangle(x, -invH/2, invW-2, invH-2).setStrokeStyle(isToxic?3:1, borderColor).setFillStyle();
+    let labelStr = isToxic ? '☠ '+ccy+' '+tc.tenor : ccy+' '+tc.tenor;
+    let label = this.txt(x-invW/2+6, -invH/2 - lSz/2 - 2, labelStr, lSz, textColor);
+    let sizeLabel = this.txt(x-invW/2+6, -invH/2 + lSz/2 + 2, fmtSize(size), sSz, sizeColor);
 
-    let inv = { bg, border, label, sizeLabel, hpBgBar, hpBar, ccy, tenor: tc.tenor, size, hp, maxHp: hp,
-                x, y: -34, w: invW, speed: baseSpd + Math.random()*20, alive: true, spawnTime: this.time.now,
-                toxic: isToxic };
+    let hpBarY = -invH/2 + invH/2 + sSz/2 + 2;
+    let hpBgBar = this.add.rectangle(x, hpBarY, invW-8, 4, 0x663333);
+    let hpBar = this.add.rectangle(x-(invW-8)/2, hpBarY, invW-8, 4, hpBarColor).setOrigin(0,0.5);
 
-    // Entry tween — slide in and settle
+    let inv = { bg, border, label, sizeLabel, hpBgBar, hpBar, ccy, tenor:tc.tenor, size, hp, maxHp:hp,
+                x, y:-invH/2, w:invW, h:invH, speed:baseSpd+Math.random()*20, alive:true, spawnTime:this.time.now,
+                toxic:isToxic, _lSz:lSz, _sSz:sSz };
+
     bg.setScale(0.8); border.setScale(0.8);
-    this.tweens.add({ targets: [bg, border], scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets:[bg,border], scale:1, duration:200, ease:'Back.easeOut' });
 
-    // Toxic trades flash/pulse to warn
     if (isToxic) {
-      this.tweens.add({ targets: [bg], alpha: { from: 1, to: 0.5 }, duration: 180, yoyo: true, repeat: -1 });
-      this.tweens.add({ targets: [border], alpha: { from: 1, to: 0.4 }, duration: 180, yoyo: true, repeat: -1 });
+      this.tweens.add({ targets:[bg], alpha:{from:1,to:0.5}, duration:180, yoyo:true, repeat:-1 });
+      this.tweens.add({ targets:[border], alpha:{from:1,to:0.4}, duration:180, yoyo:true, repeat:-1 });
     }
-
-    // Blink effect for excess bill supply
-    if (this.activeEvent && this.activeEvent.fx === 'blink' && !isToxic) {
-      this.tweens.add({ targets: [bg, border], alpha: { from: 1, to: 0.15 }, duration: 120, yoyo: true, repeat: -1 });
+    if (this.activeEvent && this.activeEvent.fx==='blink' && !isToxic) {
+      this.tweens.add({ targets:[bg,border], alpha:{from:1,to:0.15}, duration:120, yoyo:true, repeat:-1 });
     }
 
     this.invaders.add(bg);
@@ -506,88 +507,77 @@ class GameScene extends Phaser.Scene {
 
   spawnPowerup() {
     if (this.paused) return;
-    let x = ri(50, this.W - 50);
-    let pw_w = Math.min(this.W*0.38, 140);
+    let x = ri(50, this.W-50);
+    let pw_w = Phaser.Math.Clamp(Math.round(this.W*0.38), 80, 140);
+    let pwSz = fs(this.W, 9);
     let bg = this.add.rectangle(x, -28, pw_w, 36, 0xddaa00);
-    let border = this.add.rectangle(x, -28, pw_w - 4, 32).setStrokeStyle(2, 0xffee44).setFillStyle();
-    let label = this.txt(x - pw_w/2 + 10, -36, 'AXED PAYER!', 10, '#fff');
-    this.tweens.add({ targets: [bg, border], alpha: { from: 1, to: 0.4 }, duration: 250, yoyo: true, repeat: -1 });
-
-    let pw = { bg, border, label, x, y: -28, alive: true, speed: 32, w: pw_w };
+    let border = this.add.rectangle(x, -28, pw_w-4, 32).setStrokeStyle(2, 0xffee44).setFillStyle();
+    let label = this.txt(x-pw_w/2+8, -36, 'AXED PAYER!', pwSz, '#fff');
+    this.tweens.add({ targets:[bg,border], alpha:{from:1,to:0.4}, duration:250, yoyo:true, repeat:-1 });
+    let pw = { bg, border, label, x, y:-28, alive:true, speed:32, w:pw_w };
     this.powerups.add(bg);
-    bg._pw = pw;
-    bg._parts = [border, label];
+    bg._pw = pw; bg._parts = [border, label];
   }
 
   spawnOMO() {
     let tc = rEl(ON_TENORS);
-    let size = ri(30, 40) * 50;
+    let size = ri(30,40)*50;
     let hp = 8;
-    let invW = Math.min(this.W * 0.48, 170);
-    let x = ri(invW/2 + 4, this.W - invW/2 - 4);
+    let invW = Phaser.Math.Clamp(Math.round(this.W*0.48), 90, 170);
+    let x = ri(invW/2+this.M, this.W-invW/2-this.M);
+    let oSz = fs(this.W, 10);
+    let oSzS = fs(this.W, 9);
 
     let bg = this.add.rectangle(x, -44, invW, 48, 0x0f380f).setStrokeStyle(3, 0x8bac0f);
-    let label = this.txt(x - invW/2 + 10, -58, 'AUD ' + tc.tenor, 12, GBS.lightest);
-    let sizeLabel = this.txt(x - invW/2 + 10, -42, fmtSize(size), 11, GBS.lightest);
-    let hpBgBar = this.add.rectangle(x, -22, invW - 8, 6, 0x663333);
-    let hpBar = this.add.rectangle(x - (invW-8)/2, -22, invW - 8, 6, 0xcc4444).setOrigin(0, 0.5);
-
-    // Pulse glow on OMO invaders
-    this.tweens.add({ targets: bg, alpha: { from: 1, to: 0.7 }, duration: 400, yoyo: true, repeat: -1 });
+    let label = this.txt(x-invW/2+8, -58, 'AUD '+tc.tenor, oSz, GBS.lightest);
+    let sizeLabel = this.txt(x-invW/2+8, -42, fmtSize(size), oSzS, GBS.lightest);
+    let hpBgBar = this.add.rectangle(x, -22, invW-8, 6, 0x663333);
+    let hpBar = this.add.rectangle(x-(invW-8)/2, -22, invW-8, 6, 0xcc4444).setOrigin(0,0.5);
+    this.tweens.add({ targets:bg, alpha:{from:1,to:0.7}, duration:400, yoyo:true, repeat:-1 });
 
     let inv = { bg, label, sizeLabel, hpBgBar, hpBar, ccy:'AUD', tenor:tc.tenor, size, hp, maxHp:hp,
-                x, y:-44, w:invW, speed:18, alive:true, spawnTime:this.time.now };
-
+                x, y:-44, w:invW, h:48, speed:18, alive:true, spawnTime:this.time.now, _lSz:oSz, _sSz:oSzS };
     this.invaders.add(bg);
-    bg._inv = inv;
-    bg._parts = [label, sizeLabel, hpBgBar, hpBar];
+    bg._inv = inv; bg._parts = [label, sizeLabel, hpBgBar, hpBar];
   }
 
   // ---- EVENTS ----
   maybeEvent() {
     if (this.paused || this.activeEvent) return;
-    if (Math.random() < 0.4 + this.wave * 0.05) this.triggerEvent();
+    if (Math.random() < 0.4 + this.wave*0.05) this.triggerEvent();
   }
 
   triggerEvent() {
     let evt = rEl(EVENTS);
-    this.activeEvent = { ...evt, endTime: this.time.now + evt.dur };
+    this.activeEvent = { ...evt, endTime:this.time.now+evt.dur };
     this.showBanner(evt.name);
-
-    if (evt.fx === 'flood') {
-      for (let i = 0; i < 5; i++) this.time.delayedCall(i * 200, () => this.spawnInvader());
-    }
-    if (evt.fx === 'omo') {
-      for (let i = 0; i < 3; i++) this.time.delayedCall(i * 600, () => this.spawnOMO());
-    }
-    if (evt.fx === 'quake') this.cameras.main.shake(4000, 0.012);
-    if (evt.fx === 'chaos') this.cameras.main.shake(3000, 0.009);
-    if (Math.random() < 0.3) this.spawnPowerup();
+    if (evt.fx==='flood') { for(let i=0;i<5;i++) this.time.delayedCall(i*200, ()=>this.spawnInvader()); }
+    if (evt.fx==='omo') { for(let i=0;i<3;i++) this.time.delayedCall(i*600, ()=>this.spawnOMO()); }
+    if (evt.fx==='quake') this.cameras.main.shake(4000, 0.012);
+    if (evt.fx==='chaos') this.cameras.main.shake(3000, 0.009);
+    if (Math.random()<0.3) this.spawnPowerup();
     this.time.delayedCall(evt.dur, () => { this.activeEvent = null; });
   }
 
   // ---- SHOOTING ----
   fire(isLHS) {
-    if (this.paused) return;
-    if (this.bulletCD > 0) return;
-
+    if (this.paused || this.bulletCD > 0) return;
     let px = this.player.x, py = this.player.y - 20;
     let col = isLHS ? 0xcc2222 : 0x2255cc;
 
     if (this.multiShot > 0) {
       this.bulletCD = 80;
-      for (let off of [-16, 0, 16]) {
-        let b = this.add.rectangle(px + off, py, 5, 14, col);
-        // Bullet glow trail
-        let trail = this.add.rectangle(px + off, py + 10, 3, 8, col).setAlpha(0.4);
-        b._bul = { isLHS, alive: true, trail };
+      for (let off of [-16,0,16]) {
+        let b = this.add.rectangle(px+off, py, 5, 14, col);
+        let trail = this.add.rectangle(px+off, py+10, 3, 8, col).setAlpha(0.4);
+        b._bul = { isLHS, alive:true, trail };
         this.bullets.add(b);
       }
     } else {
       this.bulletCD = 180;
       let b = this.add.rectangle(px, py, 5, 14, col);
-      let trail = this.add.rectangle(px, py + 10, 3, 8, col).setAlpha(0.4);
-      b._bul = { isLHS, alive: true, trail };
+      let trail = this.add.rectangle(px, py+10, 3, 8, col).setAlpha(0.4);
+      b._bul = { isLHS, alive:true, trail };
       this.bullets.add(b);
     }
   }
@@ -595,144 +585,119 @@ class GameScene extends Phaser.Scene {
   // ---- TALLY ----
   toggleTally() {
     this.paused = !this.paused;
-    if (this.paused) {
-      this.spawnTimer.paused = true;
-      this.eventClock.paused = true;
-      this.showTallyScreen();
-    } else {
-      this.spawnTimer.paused = false;
-      this.eventClock.paused = false;
-      this.hideTallyScreen();
-    }
+    if (this.paused) { this.spawnTimer.paused=true; this.eventClock.paused=true; this.showTallyScreen(); }
+    else { this.spawnTimer.paused=false; this.eventClock.paused=false; this.hideTallyScreen(); }
   }
 
   showTallyScreen() {
     this.tallyBg.setAlpha(0.94).setDepth(20);
-    this.tallyTexts.forEach(t => t.destroy());
+    this.tallyTexts.forEach(t=>t.destroy());
     this.tallyTexts = [];
 
-    let y = 16;
+    let W=this.W, H=this.H, M=this.M;
+    let y = Math.round(H*0.04);
     let push = (x, yy, str, sz, col, ox) => {
       let t = this.txt(x, yy, str, sz, col).setDepth(21);
-      if (ox !== undefined) t.setOrigin(ox, 0);
-      this.tallyTexts.push(t);
-      return t;
+      if (ox!==undefined) t.setOrigin(ox, 0);
+      t.setWordWrapWidth(W - M*2);
+      this.tallyTexts.push(t); return t;
     };
 
-    push(this.W/2, y, 'TALLY / P&L', 15, GBS.lightest, 0.5); y += 32;
-    push(this.W/2, y, (PLAYER_NAME || 'TRADER') + ' @ SYDNEY', 9, GBS.light, 0.5); y += 20;
-    let tsign = this.score >= 0 ? '+' : '';
-    push(this.W/2, y, 'P&L: ' + tsign + '$' + Math.abs(this.score).toLocaleString(), 13, GBS.lightest, 0.5); y += 24;
-    push(this.W/2, y, 'W' + this.wave + '  STREAK ' + this.bestStreak + '  MISS ' + this.missed, 9, GBS.light, 0.5); y += 28;
+    let hSz = fs(W,13), bSz = fs(W,8), sSz = fs(W,11);
+
+    push(W/2, y, 'TALLY / P&L', hSz, GBS.lightest, 0.5); y += hSz+10;
+    push(W/2, y, (PLAYER_NAME||'TRADER')+' @ SYDNEY', bSz, GBS.light, 0.5); y += bSz+6;
+    let tsign = this.score>=0?'+':'';
+    push(W/2, y, 'P&L: '+tsign+'$'+Math.abs(this.score).toLocaleString(), sSz, GBS.lightest, 0.5); y += sSz+8;
+    push(W/2, y, 'W'+this.wave+'  STREAK '+this.bestStreak+'  MISS '+this.missed, bSz, GBS.light, 0.5); y += bSz+12;
 
     let ccyList = Object.keys(this.tally);
     if (ccyList.length > 0) {
-      push(this.W/2, y, '-- HEDGE BOOK --', 10, GBS.light, 0.5); y += 22;
-      push(10, y, 'CCY  LHS RHS  VOL', 9, GBS.light); y += 18;
-
-      let totL=0, totR=0, totV=0;
+      push(W/2, y, '-- HEDGE BOOK --', bSz, GBS.light, 0.5); y += bSz+8;
+      push(M, y, 'CCY  LHS RHS  VOL', bSz, GBS.light); y += bSz+5;
+      let totL=0,totR=0,totV=0;
       ccyList.forEach(ccy => {
+        if (y > H-30) return;
         let t = this.tally[ccy]; totL+=t.lhs; totR+=t.rhs; totV+=t.vol;
-        push(10, y, ccy+'  '+t.lhs+'   '+t.rhs+'   '+fmtSize(t.vol), 9, GBS.lightest); y += 17;
+        push(M, y, ccy+'  '+t.lhs+'   '+t.rhs+'   '+fmtSize(t.vol), bSz, GBS.lightest); y += bSz+4;
       });
-      y += 6;
-      push(10, y, 'TOT  '+totL+'   '+totR+'   '+fmtSize(totV), 9, GBS.light);
+      y += 4;
+      if (y < H-20) push(M, y, 'TOT  '+totL+'   '+totR+'   '+fmtSize(totV), bSz, GBS.light);
     } else {
-      push(this.W/2, y, 'NO TRADES YET', 10, GBS.light, 0.5);
+      push(W/2, y, 'NO TRADES YET', bSz, GBS.light, 0.5);
     }
   }
 
   hideTallyScreen() {
     this.tallyBg.setAlpha(0);
-    this.tallyTexts.forEach(t => t.destroy());
+    this.tallyTexts.forEach(t=>t.destroy());
     this.tallyTexts = [];
   }
 
-  // ---- HIT FX ----
   spawnHitFx(x, y, color, count) {
-    count = count || 8;
-    for (let i = 0; i < count; i++) {
-      let sz = ri(3, 7);
+    count = count||8;
+    for (let i=0;i<count;i++) {
+      let sz = ri(3,7);
       let p = this.add.rectangle(x, y, sz, sz, color);
-      let angle = Math.random() * Math.PI * 2;
-      let dist = 30 + Math.random() * 60;
-      this.tweens.add({
-        targets: p, x: x + Math.cos(angle)*dist, y: y + Math.sin(angle)*dist,
-        alpha: 0, scale: 0, rotation: Math.random()*3,
-        duration: 300 + Math.random()*300, onComplete: () => p.destroy()
-      });
+      let angle = Math.random()*Math.PI*2;
+      let dist = 30+Math.random()*60;
+      this.tweens.add({ targets:p, x:x+Math.cos(angle)*dist, y:y+Math.sin(angle)*dist,
+        alpha:0, scale:0, rotation:Math.random()*3, duration:300+Math.random()*300, onComplete:()=>p.destroy() });
     }
   }
 
   // ---- UPDATE ----
   update(time, delta) {
     if (this.paused) return;
-
     this.bulletCD = Math.max(0, this.bulletCD - delta);
     if (this.multiShot > 0) this.multiShot -= delta;
 
-    // Scrolling bg dots
-    this.bgDots.forEach(d => {
-      d.y += 20 * (delta/1000);
-      if (d.y > this.H + 4) { d.y = -4; d.x = ri(0, this.W); }
-    });
+    this.bgDots.forEach(d => { d.y+=20*(delta/1000); if(d.y>this.H+4){d.y=-4;d.x=ri(0,this.W);} });
 
-    // Thruster animation
+    // Thruster
     this.thrusterTimer += delta;
-    let tFlicker = Math.sin(this.thrusterTimer * 0.02) * 0.3 + 0.5;
-    this.thrusterL.setAlpha(tFlicker);
-    this.thrusterR.setAlpha(tFlicker);
-    let tLen = 6 + Math.sin(this.thrusterTimer * 0.015) * 4;
-    this.thrusterL.setSize(4, tLen);
-    this.thrusterR.setSize(4, tLen);
+    let tFlicker = Math.sin(this.thrusterTimer*0.02)*0.3+0.5;
+    this.thrusterL.setAlpha(tFlicker); this.thrusterR.setAlpha(tFlicker);
+    let tLen = 6+Math.sin(this.thrusterTimer*0.015)*4;
+    this.thrusterL.setSize(4,tLen); this.thrusterR.setSize(4,tLen);
 
-    // Input
-    let ml = this.moveLeft || this.cursors.left.isDown;
-    let mr = this.moveRight || this.cursors.right.isDown;
-    let spd = 220 * (delta / 1000);
+    let ml = this.moveLeft||this.cursors.left.isDown;
+    let mr = this.moveRight||this.cursors.right.isDown;
+    let spd = 220*(delta/1000);
     if (ml) this.movePlayer(-spd);
     if (mr) this.movePlayer(spd);
-
-    if (Phaser.Input.Keyboard.JustDown(this.keyZ) || Phaser.Input.Keyboard.JustDown(this.keySpace)) this.fire(true);
+    if (Phaser.Input.Keyboard.JustDown(this.keyZ)||Phaser.Input.Keyboard.JustDown(this.keySpace)) this.fire(true);
     if (Phaser.Input.Keyboard.JustDown(this.keyX)) this.fire(false);
 
-    // Multi-shot bar
-    if (this.multiShot > 0) {
-      this.hudMulti.setVisible(true).setSize(this.W * (this.multiShot / 6000), 4);
-    } else {
-      this.hudMulti.setVisible(false);
-    }
+    if (this.multiShot>0) { this.hudMulti.setVisible(true).setSize(this.W*(this.multiShot/6000),3); }
+    else { this.hudMulti.setVisible(false); }
 
-    // Event bar
     if (this.activeEvent) {
-      let remain = Math.max(0, this.activeEvent.endTime - time);
-      this.eventBar.setSize(this.W * (remain / this.activeEvent.dur), 5);
-    } else {
-      this.eventBar.setSize(0, 5);
-    }
+      let remain = Math.max(0, this.activeEvent.endTime-time);
+      this.eventBar.setSize(this.W*(remain/this.activeEvent.dur), 4);
+    } else { this.eventBar.setSize(0,4); }
 
-    // Move bullets
+    // Bullets
     this.bullets.getChildren().slice().forEach(b => {
-      if (!b._bul || !b._bul.alive) return;
-      b.y -= 420 * (delta / 1000);
-      if (b._bul.trail) { b._bul.trail.x = b.x; b._bul.trail.y = b.y + 12; }
-      if (b.y < -20) { b._bul.alive = false; if (b._bul.trail) b._bul.trail.destroy(); b.destroy(); }
+      if (!b._bul||!b._bul.alive) return;
+      b.y -= 420*(delta/1000);
+      if (b._bul.trail) { b._bul.trail.x=b.x; b._bul.trail.y=b.y+12; }
+      if (b.y<-20) { b._bul.alive=false; if(b._bul.trail)b._bul.trail.destroy(); b.destroy(); }
     });
 
-    // Move powerups
+    // Powerups
     this.powerups.getChildren().slice().forEach(bg => {
-      let pw = bg._pw; if (!pw || !pw.alive) return;
-      pw.y += pw.speed * (delta / 1000);
-      bg.y = pw.y;
-      bg._parts.forEach(p => p.y += pw.speed * (delta/1000));
-      if (pw.y > this.H + 30) { pw.alive = false; bg.destroy(); bg._parts.forEach(p=>p.destroy()); }
+      let pw = bg._pw; if(!pw||!pw.alive) return;
+      pw.y += pw.speed*(delta/1000);
+      bg.y = pw.y; bg._parts.forEach(p=>p.y+=pw.speed*(delta/1000));
+      if (pw.y>this.H+30) { pw.alive=false; bg.destroy(); bg._parts.forEach(p=>p.destroy()); }
 
       this.bullets.getChildren().slice().forEach(bb => {
-        if (!bb._bul || !bb._bul.alive || !pw.alive) return;
-        if (Math.abs(bb.x - bg.x) < pw.w/2 + 5 && Math.abs(bb.y - bg.y) < 22) {
-          bb._bul.alive = false; if (bb._bul.trail) bb._bul.trail.destroy(); bb.destroy();
-          pw.alive = false; bg.destroy(); bg._parts.forEach(p=>p.destroy());
-          this.multiShot = 6000;
+        if (!bb._bul||!bb._bul.alive||!pw.alive) return;
+        if (Math.abs(bb.x-bg.x)<pw.w/2+5 && Math.abs(bb.y-bg.y)<22) {
+          bb._bul.alive=false; if(bb._bul.trail)bb._bul.trail.destroy(); bb.destroy();
+          pw.alive=false; bg.destroy(); bg._parts.forEach(p=>p.destroy());
+          this.multiShot=6000;
           this.showBanner('AXED PAYER!\nTRIPLE SHOT!');
           this.spawnHitFx(pw.x, pw.y, 0xffcc00, 15);
           this.cameras.main.flash(200, 255, 200, 0);
@@ -740,123 +705,115 @@ class GameScene extends Phaser.Scene {
       });
     });
 
-    // Move invaders
-    let wobbly = this.activeEvent && this.activeEvent.fx === 'wobbly';
+    // Invaders
+    let wobbly = this.activeEvent && this.activeEvent.fx==='wobbly';
     this.invaders.getChildren().slice().forEach(bg => {
-      let inv = bg._inv; if (!inv || !inv.alive) return;
-      inv.y += inv.speed * (delta / 1000);
+      let inv = bg._inv; if(!inv||!inv.alive) return;
+      inv.y += inv.speed*(delta/1000);
+      let xOff = wobbly ? Math.sin((time-inv.spawnTime)*0.004)*35 : 0;
 
-      let xOff = 0;
-      if (wobbly) xOff = Math.sin((time - inv.spawnTime) * 0.004) * 35;
-
-      bg.x = inv.x + xOff; bg.y = inv.y;
-      // Update all parts positions
-      let parts = bg._parts || [];
-      if (inv.border) { inv.border.x = inv.x + xOff; inv.border.y = inv.y; }
-      if (parts[0]) { parts[0].x = inv.x + xOff; parts[0].y = inv.y; } // border
-      if (parts[1]) parts[1].setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y - 14);  // label
-      if (parts[2]) parts[2].setPosition(inv.x - inv.w/2 + 8 + xOff, inv.y + 0);   // size
-      if (inv.hpBgBar) inv.hpBgBar.setPosition(inv.x + xOff, inv.y + 17);
+      bg.x = inv.x+xOff; bg.y = inv.y;
+      let parts = bg._parts||[];
+      let invH = inv.h||42;
+      if (parts[0]) { parts[0].x=inv.x+xOff; parts[0].y=inv.y; }
+      if (parts[1]) parts[1].setPosition(inv.x-inv.w/2+6+xOff, inv.y-invH/2+3);
+      if (parts[2]) parts[2].setPosition(inv.x-inv.w/2+6+xOff, inv.y-invH/2+(inv._lSz||9)+5);
+      if (inv.hpBgBar) inv.hpBgBar.setPosition(inv.x+xOff, inv.y+invH/2-5);
       if (inv.hpBar) {
-        inv.hpBar.setPosition(inv.x - (inv.w-8)/2 + xOff, inv.y + 17);
-        inv.hpBar.setSize((inv.w - 8) * (inv.hp / inv.maxHp), inv.hpBar.height);
+        inv.hpBar.setPosition(inv.x-(inv.w-8)/2+xOff, inv.y+invH/2-5);
+        inv.hpBar.setSize((inv.w-8)*(inv.hp/inv.maxHp), inv.hpBar.height);
       }
 
       // Hit player?
-      if (inv.y > this.H - 46 && inv.y < this.H - 10 &&
-          Math.abs((inv.x + xOff) - this.player.x) < (inv.w/2 + 26)) {
+      if (inv.y > this._shipY-26 && inv.y < this._shipY+14 &&
+          Math.abs((inv.x+xOff)-this.player.x) < (inv.w/2+26)) {
         this.spawnHitFx(this.player.x, this.player.y, 0xcc2222, 12);
         this.killInvader(inv, bg);
-        this.lives--;
-        this.streak = 0;
-        this.updateLives();
+        this.lives--; this.streak=0; this.updateLives();
         this.showBanner('FILLED! OUCH!');
         this.cameras.main.shake(400, 0.025);
         this.cameras.main.flash(200, 200, 50, 50);
-        if (this.lives <= 0) { this.gameOver(); return; }
+        if (this.lives<=0) { this.gameOver(); return; }
         return;
       }
 
       // Off screen?
-      if (inv.y > this.H + 30) {
+      if (inv.y > this.H+30) {
         this.killInvader(inv, bg);
         if (inv.toxic) {
-          // Good — player dodged a toxic trade
-          let taunt = this.txt(this.W/2, this.H - 50, rEl(DODGE_TAUNTS), 11, '#44aa44').setOrigin(0.5,0.5);
-          this.tweens.add({ targets: taunt, y: this.H - 90, alpha: 0, duration: 1200, onComplete: () => taunt.destroy() });
+          let ts = fs(this.W,9);
+          let taunt = this.txt(this.W/2, this.H-50, rEl(DODGE_TAUNTS), ts, '#44aa44').setOrigin(0.5,0.5);
+          this.tweens.add({ targets:taunt, y:this.H-90, alpha:0, duration:1200, onComplete:()=>taunt.destroy() });
         } else {
-          this.missed++; this.streak = 0;
-          this.hudMiss.setText('MISS:' + this.missed);
-          let taunt = this.txt(this.W/2, this.H - 50, rEl(MISS_TAUNTS), 10, '#883322').setOrigin(0.5,0.5);
-          this.tweens.add({ targets: taunt, y: this.H - 90, alpha: 0, duration: 1200, onComplete: () => taunt.destroy() });
+          this.missed++; this.streak=0;
+          this.hudMiss.setText('MISS:'+this.missed);
+          let ts = fs(this.W,8);
+          let taunt = this.txt(this.W/2, this.H-50, rEl(MISS_TAUNTS), ts, '#883322').setOrigin(0.5,0.5);
+          this.tweens.add({ targets:taunt, y:this.H-90, alpha:0, duration:1200, onComplete:()=>taunt.destroy() });
         }
       }
 
       // Bullet collision
       this.bullets.getChildren().slice().forEach(bb => {
-        if (!bb._bul || !bb._bul.alive || !inv.alive) return;
-        if (Math.abs(bb.x - (inv.x + xOff)) < inv.w/2 + 4 && Math.abs(bb.y - inv.y) < 24) {
-          bb._bul.alive = false; if (bb._bul.trail) bb._bul.trail.destroy(); bb.destroy();
+        if (!bb._bul||!bb._bul.alive||!inv.alive) return;
+        if (Math.abs(bb.x-(inv.x+xOff))<inv.w/2+4 && Math.abs(bb.y-inv.y)<invH/2+4) {
+          bb._bul.alive=false; if(bb._bul.trail)bb._bul.trail.destroy(); bb.destroy();
           inv.hp--;
-          if (inv.hp <= 0) {
-            // KILLED
+          if (inv.hp<=0) {
             let basePnl = calcPnl(inv.tenor, inv.size);
+            let scoreSz = fs(this.W,11);
+            let warnSz = fs(this.W,12);
 
             if (inv.toxic) {
-              // TOXIC TRADE — you lose money!
-              this.score -= basePnl;
-              this.streak = 0;
-              this.spawnHitFx(inv.x + xOff, inv.y, 0xcc2222, 12);
+              this.score -= basePnl; this.streak=0;
+              this.spawnHitFx(inv.x+xOff, inv.y, 0xcc2222, 12);
               this.cameras.main.shake(300, 0.02);
-              let ft = this.txt(inv.x + xOff, inv.y - 10, '-$' + basePnl, 14, '#cc2222').setOrigin(0.5,0.5);
+              let ft = this.txt(inv.x+xOff, inv.y-10, '-$'+basePnl, scoreSz, '#cc2222').setOrigin(0.5,0.5);
               ft.setScale(1.6);
-              this.tweens.add({ targets: ft, scale: 1, duration: 150 });
-              this.tweens.add({ targets: ft, y: inv.y - 60, alpha: 0, duration: 900, onComplete: () => ft.destroy() });
-              let warn = this.txt(this.W/2, this.H*0.5, 'TOXIC FILL!', 14, '#cc2222').setOrigin(0.5,0.5);
-              this.tweens.add({ targets: warn, alpha: 0, y: this.H*0.4, delay: 400, duration: 500, onComplete: () => warn.destroy() });
+              this.tweens.add({ targets:ft, scale:1, duration:150 });
+              this.tweens.add({ targets:ft, y:inv.y-60, alpha:0, duration:900, onComplete:()=>ft.destroy() });
+              let warn = this.txt(this.W/2, this.H*0.5, 'TOXIC FILL!', warnSz, '#cc2222').setOrigin(0.5,0.5);
+              this.tweens.add({ targets:warn, alpha:0, y:this.H*0.4, delay:400, duration:500, onComplete:()=>warn.destroy() });
             } else {
-              // Normal trade
-              this.streak++; if (this.streak > this.bestStreak) this.bestStreak = this.streak;
+              this.streak++; if(this.streak>this.bestStreak) this.bestStreak=this.streak;
               let mult = Math.min(this.streak, 10);
               let pts = basePnl * mult;
               this.score += pts;
-              this.spawnHitFx(inv.x + xOff, inv.y, GB.light, 10);
-              let ft = this.txt(inv.x + xOff, inv.y - 10, '+$' + pts, 13, GBS.darkest).setOrigin(0.5,0.5);
+              this.spawnHitFx(inv.x+xOff, inv.y, GB.light, 10);
+              let ft = this.txt(inv.x+xOff, inv.y-10, '+$'+pts, scoreSz, GBS.darkest).setOrigin(0.5,0.5);
               ft.setScale(1.4);
-              this.tweens.add({ targets: ft, scale: 1, duration: 150 });
-              this.tweens.add({ targets: ft, y: inv.y - 60, alpha: 0, duration: 900, onComplete: () => ft.destroy() });
+              this.tweens.add({ targets:ft, scale:1, duration:150 });
+              this.tweens.add({ targets:ft, y:inv.y-60, alpha:0, duration:900, onComplete:()=>ft.destroy() });
             }
             this.waveKills++;
 
             let side = bb._bul.isLHS ? 'lhs' : 'rhs';
-            if (!this.tally[inv.ccy]) this.tally[inv.ccy] = { lhs:0, rhs:0, vol:0 };
+            if (!this.tally[inv.ccy]) this.tally[inv.ccy] = {lhs:0,rhs:0,vol:0};
             this.tally[inv.ccy][side]++;
             this.tally[inv.ccy].vol += inv.size;
 
-            // Streak callout
-            if (this.streak >= 5 && this.streak % 5 === 0) {
-              let sc = this.txt(this.W/2, this.H*0.6, this.streak + 'x STREAK!', 14, GBS.darkest).setOrigin(0.5,0.5);
+            if (this.streak>=5 && this.streak%5===0) {
+              let scSz = fs(this.W,12);
+              let sc = this.txt(this.W/2, this.H*0.6, this.streak+'x STREAK!', scSz, GBS.darkest).setOrigin(0.5,0.5);
               sc.setScale(0.5);
-              this.tweens.add({ targets: sc, scale: 1.2, duration: 200, yoyo: true });
-              this.tweens.add({ targets: sc, alpha: 0, y: this.H*0.5, delay: 600, duration: 400, onComplete: () => sc.destroy() });
+              this.tweens.add({ targets:sc, scale:1.2, duration:200, yoyo:true });
+              this.tweens.add({ targets:sc, alpha:0, y:this.H*0.5, delay:600, duration:400, onComplete:()=>sc.destroy() });
             }
 
             this.killInvader(inv, bg);
             this.updateHUD();
-
-            if (this.waveKills >= this.waveTarget) {
-              this.wave++; this.waveKills = 0; this.waveTarget = 8 + this.wave * 2;
+            if (this.waveKills>=this.waveTarget) {
+              this.wave++; this.waveKills=0; this.waveTarget=8+this.wave*2;
               this.showWaveBanner(this.wave);
-              this.spawnTimer.delay = Math.max(800, 2200 - this.wave * 150);
-              // Flash on wave change
+              this.spawnTimer.delay = Math.max(800, 2200-this.wave*150);
               this.cameras.main.flash(300, 15, 56, 15);
             }
           } else {
-            // Hit but not dead
-            this.tweens.add({ targets: bg, alpha: { from: 0.2, to: 1 }, duration: 100 });
+            this.tweens.add({ targets:bg, alpha:{from:0.2,to:1}, duration:100 });
             this.spawnHitFx(bb.x, bb.y, GB.light, 4);
-            let ht = this.txt(inv.x + xOff, inv.y - 18, inv.hp + ' LEFT', 9, GBS.darkest).setOrigin(0.5,0.5);
-            this.tweens.add({ targets: ht, y: inv.y - 44, alpha: 0, duration: 600, onComplete: () => ht.destroy() });
+            let hitSz = fs(this.W,7);
+            let ht = this.txt(inv.x+xOff, inv.y-18, inv.hp+' LEFT', hitSz, GBS.darkest).setOrigin(0.5,0.5);
+            this.tweens.add({ targets:ht, y:inv.y-44, alpha:0, duration:600, onComplete:()=>ht.destroy() });
           }
         }
       });
@@ -866,45 +823,37 @@ class GameScene extends Phaser.Scene {
   }
 
   movePlayer(dx) {
-    let nx = Phaser.Math.Clamp(this.player.x + dx, 30, this.W - 30);
-    this.player.x = nx;
-    this.playerGun.x = nx;
-    this.playerWingL.x = nx - 30;
-    this.playerWingR.x = nx + 30;
-    this.playerCockpit.x = nx;
-    this.thrusterL.x = nx - 12;
-    this.thrusterR.x = nx + 12;
+    let nx = Phaser.Math.Clamp(this.player.x+dx, 30, this.W-30);
+    this.player.x=nx; this.playerGun.x=nx;
+    this.playerWingL.x=nx-this._wingOff; this.playerWingR.x=nx+this._wingOff;
+    this.playerCockpit.x=nx;
+    this.thrusterL.x=nx-12; this.thrusterR.x=nx+12;
   }
 
   killInvader(inv, bg) {
-    inv.alive = false;
-    bg.destroy();
-    if (bg._parts) bg._parts.forEach(p => { try { p.destroy(); } catch(e){} });
+    inv.alive=false; bg.destroy();
+    if (bg._parts) bg._parts.forEach(p=>{ try{p.destroy();}catch(e){} });
   }
 
   updateHUD() {
-    let sign = this.score >= 0 ? '+' : '';
-    this.hudPnl.setText('P&L: ' + sign + '$' + Math.abs(this.score).toLocaleString());
-    if (this.score < 0) this.hudPnl.setColor('#cc2222'); else this.hudPnl.setColor(GBS.darkest);
-    this.hudWave.setText('W' + this.wave);
-    this.hudStreak.setText(this.streak > 1 ? 'x' + this.streak : '');
+    let sign = this.score>=0?'+':'';
+    this.hudPnl.setText('P&L: '+sign+'$'+Math.abs(this.score).toLocaleString());
+    if (this.score<0) this.hudPnl.setColor('#cc2222'); else this.hudPnl.setColor(GBS.darkest);
+    this.hudWave.setText('W'+this.wave);
+    this.hudStreak.setText(this.streak>1?'x'+this.streak:'');
   }
 
   updateLives() {
-    this.livesGfx.forEach((g, i) => {
-      let vis = i < this.lives;
-      g.body.setVisible(vis);
-      g.gun.setVisible(vis);
-    });
+    this.livesGfx.forEach((g,i) => { let v=i<this.lives; g.body.setVisible(v); g.gun.setVisible(v); });
   }
 
   gameOver() {
-    let hi = 0;
-    try { hi = parseInt(localStorage.getItem('stirboy_hi') || '0'); } catch(e){}
-    if (this.score > hi) { try { localStorage.setItem('stirboy_hi', this.score.toString()); } catch(e){} }
+    let hi=0;
+    try{hi=parseInt(localStorage.getItem('stirboy_hi')||'0');}catch(e){}
+    if(this.score>hi){try{localStorage.setItem('stirboy_hi',this.score.toString());}catch(e){}}
     this.scene.start('GameOver', {
-      score: this.score, wave: this.wave, streak: this.bestStreak,
-      missed: this.missed, tally: this.tally, hi: Math.max(this.score, hi), name: PLAYER_NAME
+      score:this.score, wave:this.wave, streak:this.bestStreak,
+      missed:this.missed, tally:this.tally, hi:Math.max(this.score,hi), name:PLAYER_NAME
     });
   }
 }
@@ -913,54 +862,59 @@ class GameScene extends Phaser.Scene {
 class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
   create(data) {
-    let W = this.scale.width, H = this.scale.height;
+    let W = this.scale.width, H = this.scale.height, M = mg(W);
     this.cameras.main.setBackgroundColor(GB.bg);
-
-    // Scanlines
-    this.add.tileSprite(0, 0, W, H, 'scanlines').setOrigin(0).setDepth(50).setAlpha(0.4);
+    this.add.tileSprite(0,0,W,H,'scanlines').setOrigin(0).setDepth(50).setAlpha(0.4);
 
     // Panel
-    this.add.rectangle(W/2, H/2, W*0.94, H*0.88, GB.darkest).setStrokeStyle(3, GB.light);
+    this.add.rectangle(W/2, H/2, W-M*2, H-M*2, GB.darkest).setStrokeStyle(3, GB.light);
 
-    let y = 20;
-    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:'18px', color:GBS.lightest }).setOrigin(0.5);
-    y += 32;
+    let tSz = fs(W,16), sSz = fs(W,12), bSz = fs(W,8), cSz = fs(W,9);
+    let y = M + Math.round(H*0.04);
+
+    this.add.text(W/2, y, 'BLOWN UP!', { fontFamily:'"Press Start 2P"', fontSize:tSz+'px', color:GBS.lightest }).setOrigin(0.5);
+    y += tSz + Math.round(H*0.025);
 
     if (data.name) {
-      this.add.text(W/2, y, data.name + ' @ SYDNEY', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
-      y += 22;
+      this.add.text(W/2, y, data.name+' @ SYDNEY', { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.light }).setOrigin(0.5);
+      y += bSz + Math.round(H*0.015);
     }
 
-    let gsign = data.score >= 0 ? '+' : '';
-    this.add.text(W/2, y, 'P&L: ' + gsign + '$' + Math.abs(data.score).toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:'14px', color:GBS.lightest }).setOrigin(0.5);
-    y += 28;
-    this.add.text(W/2, y, 'WAVE '+data.wave+'  STREAK '+data.streak, { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
-    y += 20;
-    this.add.text(W/2, y, 'MISSED: '+data.missed, { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
-    y += 28;
+    let gsign = data.score>=0?'+':'';
+    this.add.text(W/2, y, 'P&L: '+gsign+'$'+Math.abs(data.score).toLocaleString(), { fontFamily:'"Press Start 2P"', fontSize:sSz+'px', color:GBS.lightest }).setOrigin(0.5);
+    y += sSz + Math.round(H*0.015);
 
-    let ccyList = Object.keys(data.tally || {});
+    this.add.text(W/2, y, 'WAVE '+data.wave+'  STREAK '+data.streak, { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.light }).setOrigin(0.5);
+    y += bSz + Math.round(H*0.01);
+    this.add.text(W/2, y, 'MISSED: '+data.missed, { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.light }).setOrigin(0.5);
+    y += bSz + Math.round(H*0.025);
+
+    let ccyList = Object.keys(data.tally||{});
     if (ccyList.length) {
-      this.add.text(W/2, y, '-- HEDGE BOOK --', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.light }).setOrigin(0.5);
-      y += 20;
+      this.add.text(W/2, y, '-- HEDGE BOOK --', { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.light }).setOrigin(0.5);
+      y += bSz + Math.round(H*0.012);
       let totL=0,totR=0,totV=0;
       ccyList.forEach(ccy => {
+        if (y > H-Math.round(H*0.15)) return;
         let t = data.tally[ccy]; totL+=t.lhs; totR+=t.rhs; totV+=t.vol;
-        this.add.text(14, y, ccy+'  L:'+t.lhs+' R:'+t.rhs+' '+fmtSize(t.vol), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.lightest });
-        y += 16;
+        this.add.text(M+10, y, ccy+'  L:'+t.lhs+' R:'+t.rhs+' '+fmtSize(t.vol), { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.lightest });
+        y += bSz+4;
       });
-      y += 6;
-      this.add.text(14, y, 'TOT L:'+totL+' R:'+totR+' '+fmtSize(totV), { fontFamily:'"Press Start 2P"', fontSize:'9px', color:GBS.light });
-      y += 24;
+      y += 4;
+      if (y<H-Math.round(H*0.12)) {
+        this.add.text(M+10, y, 'TOT L:'+totL+' R:'+totR+' '+fmtSize(totV), { fontFamily:'"Press Start 2P"', fontSize:bSz+'px', color:GBS.light });
+        y += bSz+Math.round(H*0.025);
+      }
     }
 
-    if (data.score >= data.hi) {
-      let nt = this.add.text(W/2, y, 'NEW HIGH SCORE!', { fontFamily:'"Press Start 2P"', fontSize:'11px', color:'#ffcc00' }).setOrigin(0.5);
-      this.tweens.add({ targets: nt, scale: { from: 1, to: 1.15 }, duration: 400, yoyo: true, repeat: -1 });
+    if (data.score>=data.hi) {
+      let hiSz = fs(W,10);
+      let nt = this.add.text(W/2, y, 'NEW HIGH SCORE!', { fontFamily:'"Press Start 2P"', fontSize:hiSz+'px', color:'#ffcc00' }).setOrigin(0.5);
+      this.tweens.add({ targets:nt, scale:{from:1,to:1.15}, duration:400, yoyo:true, repeat:-1 });
     }
 
-    let cont = this.add.text(W/2, H - 20, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:'10px', color:GBS.lightest }).setOrigin(0.5);
-    this.tweens.add({ targets: cont, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
+    let cont = this.add.text(W/2, H-M-cSz-4, 'TAP TO CONTINUE', { fontFamily:'"Press Start 2P"', fontSize:cSz+'px', color:GBS.lightest }).setOrigin(0.5);
+    this.tweens.add({ targets:cont, alpha:0, duration:500, yoyo:true, repeat:-1 });
 
     this.input.once('pointerdown', () => this.scene.start('Title'));
     this.input.keyboard.once('keydown-ENTER', () => this.scene.start('Title'));
@@ -969,27 +923,24 @@ class GameOverScene extends Phaser.Scene {
 
 // ---- NAME ENTRY ----
 let nameCallback = null;
-
 function showNameEntry(cb) {
-  nameCallback = cb || null;
+  nameCallback = cb||null;
   let overlay = document.getElementById('nameOverlay');
   let input = document.getElementById('nameInput');
   overlay.classList.add('show');
-  input.value = PLAYER_NAME;
-  input.focus();
+  input.value = PLAYER_NAME; input.focus();
 }
-
 document.getElementById('nameOk').addEventListener('click', submitName);
-document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+document.getElementById('nameInput').addEventListener('keydown', e => { if(e.key==='Enter') submitName(); });
 
 function submitName() {
   let input = document.getElementById('nameInput');
-  let name = input.value.trim().toUpperCase().replace(/[^A-Z0-9 ]/g, '').substring(0, 8);
+  let name = input.value.trim().toUpperCase().replace(/[^A-Z0-9 ]/g,'').substring(0,8);
   if (!name) name = 'TRADER';
   PLAYER_NAME = name;
-  try { localStorage.setItem('stirboy_name', name); } catch(e){}
+  try{localStorage.setItem('stirboy_name',name);}catch(e){}
   document.getElementById('nameOverlay').classList.remove('show');
-  if (nameCallback) { nameCallback(); nameCallback = null; }
+  if (nameCallback) { nameCallback(); nameCallback=null; }
 }
 
 // ---- INIT ----
@@ -1007,49 +958,42 @@ function initGame() {
     scene: [BootScene, TitleScene, GameScene, GameOverScene],
   });
 
-  // Wire up HTML buttons
   function setupHold(id, down, up) {
-    let el = document.getElementById(id); if (!el) return;
+    let el = document.getElementById(id); if(!el) return;
     let h = false;
-    el.addEventListener('touchstart', e => { e.preventDefault(); h=true; down(); }, {passive:false});
-    el.addEventListener('touchend', e => { e.preventDefault(); h=false; up(); }, {passive:false});
-    el.addEventListener('touchcancel', e => { e.preventDefault(); h=false; up(); }, {passive:false});
-    el.addEventListener('mousedown', e => { e.preventDefault(); h=true; down(); });
-    el.addEventListener('mouseup', e => { e.preventDefault(); h=false; up(); });
-    el.addEventListener('mouseleave', () => { if(h){h=false;up();} });
+    el.addEventListener('touchstart', e=>{e.preventDefault();h=true;down();}, {passive:false});
+    el.addEventListener('touchend', e=>{e.preventDefault();h=false;up();}, {passive:false});
+    el.addEventListener('touchcancel', e=>{e.preventDefault();h=false;up();}, {passive:false});
+    el.addEventListener('mousedown', e=>{e.preventDefault();h=true;down();});
+    el.addEventListener('mouseup', e=>{e.preventDefault();h=false;up();});
+    el.addEventListener('mouseleave', ()=>{if(h){h=false;up();}});
   }
   function setupTap(id, fn) {
-    let el = document.getElementById(id); if (!el) return;
-    el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, {passive:false});
-    el.addEventListener('mousedown', e => { e.preventDefault(); fn(); });
+    let el = document.getElementById(id); if(!el) return;
+    el.addEventListener('touchstart', e=>{e.preventDefault();fn();}, {passive:false});
+    el.addEventListener('mousedown', e=>{e.preventDefault();fn();});
   }
 
   function getScene() { return game.scene.getScene('Game'); }
 
-  setupHold('dLeft',
-    () => { let s = getScene(); if(s) s.moveLeft = true; },
-    () => { let s = getScene(); if(s) s.moveLeft = false; }
-  );
-  setupHold('dRight',
-    () => { let s = getScene(); if(s) s.moveRight = true; },
-    () => { let s = getScene(); if(s) s.moveRight = false; }
-  );
-  setupTap('btnLHS', () => { let s = getScene(); if(s) s.fire(true); });
-  setupTap('btnRHS', () => { let s = getScene(); if(s) s.fire(false); });
+  setupHold('dLeft', ()=>{let s=getScene();if(s)s.moveLeft=true;}, ()=>{let s=getScene();if(s)s.moveLeft=false;});
+  setupHold('dRight', ()=>{let s=getScene();if(s)s.moveRight=true;}, ()=>{let s=getScene();if(s)s.moveRight=false;});
+  setupTap('btnLHS', ()=>{let s=getScene();if(s)s.fire(true);});
+  setupTap('btnRHS', ()=>{let s=getScene();if(s)s.fire(false);});
 
-  document.getElementById('btnTally').addEventListener('click', () => {
-    let s = getScene(); if(s && s.scene.isActive()) s.toggleTally();
+  document.getElementById('btnTally').addEventListener('click', ()=>{
+    let s=getScene(); if(s&&s.scene.isActive()) s.toggleTally();
   });
-  document.getElementById('btnStart').addEventListener('click', () => {
+  document.getElementById('btnStart').addEventListener('click', ()=>{
     let s = getScene();
-    if (s && s.paused) { s.toggleTally(); return; }
+    if (s&&s.paused) { s.toggleTally(); return; }
     let title = game.scene.getScene('Title');
-    if (title && title.scene.isActive()) title.scene.start('Game');
+    if (title&&title.scene.isActive()) title.scene.start('Game');
     let go = game.scene.getScene('GameOver');
-    if (go && go.scene.isActive()) go.scene.start('Title');
+    if (go&&go.scene.isActive()) go.scene.start('Title');
   });
 
-  document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+  document.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
 }
 
 document.fonts.ready.then(initGame);
