@@ -111,7 +111,7 @@
     <div class="screen-bottom-label">&copy; 2026 TOMNEXTER SYSTEMS</div>
   </div>
   <div class="meta-buttons">
-    <button class="meta-btn" id="btnPause">PAUSE</button>
+    <button class="meta-btn" id="btnPause">TALLY</button>
     <button class="meta-btn" id="btnStart">START</button>
   </div>
   <div id="controls">
@@ -120,8 +120,8 @@
       <button class="arrow-btn" id="dRight">&#9654;</button>
     </div>
     <div class="fire-btns">
-      <button class="fire-btn btn-rhs" id="btnRHS">RHS<br>BUY</button>
-      <button class="fire-btn btn-lhs" id="btnLHS">LHS<br>SELL</button>
+      <button class="fire-btn btn-rhs" id="btnRHS">RHS</button>
+      <button class="fire-btn btn-lhs" id="btnLHS">LHS</button>
     </div>
   </div>
   <div class="speaker"><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div><div class="speaker-line"></div></div>
@@ -149,11 +149,19 @@ window.addEventListener('resize', resizeCanvas);
 const GB = { darkest: '#0f380f', dark: '#306230', light: '#8bac0f', lightest: '#9bbc0f', bg: '#9bbc0f' };
 const CCYS = ['AUD','NZD','JPY','CHF','EUR','CAD','GBP'];
 
-const TENOR_WAVES = [
-  { tenors: ['T/N','S/N','1W'], minSize: 500, maxSize: 2000, speed: 1.2, label: 'SHORT DATES' },
-  { tenors: ['2W','1M','2M'], minSize: 500, maxSize: 1000, speed: 1.0, label: 'MEDIUM TENORS' },
-  { tenors: ['3M','6M'], minSize: 200, maxSize: 500, speed: 0.8, label: 'MEDIUM-LONG' },
-  { tenors: ['9M','1Y','2Y'], minSize: 50, maxSize: 500, speed: 0.6, label: 'LONG DATES' },
+// All tenors mixed from the start; wave just increases speed
+const ALL_TENORS = [
+  { tenor: 'T/N', minSize: 500, maxSize: 2000 },
+  { tenor: 'S/N', minSize: 500, maxSize: 2000 },
+  { tenor: '1W', minSize: 500, maxSize: 2000 },
+  { tenor: '2W', minSize: 500, maxSize: 1000 },
+  { tenor: '1M', minSize: 500, maxSize: 1000 },
+  { tenor: '2M', minSize: 500, maxSize: 1000 },
+  { tenor: '3M', minSize: 200, maxSize: 500 },
+  { tenor: '6M', minSize: 200, maxSize: 500 },
+  { tenor: '9M', minSize: 50, maxSize: 500 },
+  { tenor: '1Y', minSize: 50, maxSize: 500 },
+  { tenor: '2Y', minSize: 50, maxSize: 500 },
 ];
 
 const MISS_TAUNTS = [
@@ -163,15 +171,16 @@ const MISS_TAUNTS = [
 ];
 
 const EVENTS = [
-  { name: 'NFP RELEASE!', effect: 'speedup', duration: 300 },
-  { name: 'CPI PRINT!', effect: 'speedup', duration: 300 },
-  { name: 'FOMC DECISION!', effect: 'chaos', duration: 400 },
-  { name: 'O/N CUTOFF!', effect: 'flood', duration: 250 },
-  { name: 'SYD>LDN HANDOVER', effect: 'shift', duration: 200 },
-  { name: 'LDN>NY HANDOVER', effect: 'shift', duration: 200 },
-  { name: 'BASIS BLOW-OUT!', effect: 'split', duration: 350 },
-  { name: 'FUNDING SQUEEZE!', effect: 'accel', duration: 300 },
-  { name: 'YEAR-END TURN!', effect: 'boss', duration: 500 },
+  { name: 'ES BALANCE EXPLODES!', effect: 'chaos', duration: 400 },
+  { name: 'TAX DAY!', effect: 'flood', duration: 300 },
+  { name: '$ FUNDING PUKE!', effect: 'accel', duration: 350 },
+  { name: 'DEC/JAN TURN NUKED!', effect: 'boss', duration: 500 },
+  { name: 'IMM FUNDING SQUEEZE!', effect: 'speedup', duration: 350 },
+  { name: 'STEEP CARRY!', effect: 'split', duration: 300 },
+  { name: 'REPO RATE SPIKES!', effect: 'flood', duration: 300 },
+  { name: 'XCCY BASIS BLOWS!', effect: 'chaos', duration: 400 },
+  { name: 'RBA O/N DRAIN!', effect: 'accel', duration: 300 },
+  { name: 'QUARTER-END CRUNCH!', effect: 'speedup', duration: 350 },
 ];
 
 let game = {
@@ -197,7 +206,10 @@ function formatSize(mio) {
 }
 function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function randEl(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function getWaveConfig() { return TENOR_WAVES[Math.min(Math.floor((game.wave - 1) / 2), TENOR_WAVES.length - 1)]; }
+function getWaveLabel() {
+  let labels = ['WARMING UP','FLOW PICKING UP','GETTING BUSY','HEAVY FLOW','CARNAGE','FULL SEND'];
+  return labels[Math.min(game.wave - 1, labels.length - 1)];
+}
 
 function hitsNeeded(size) {
   if (size >= 1500) return 4;
@@ -211,11 +223,11 @@ function addFloatText(x, y, text, good) {
 }
 
 function spawnInvader() {
-  let cfg = getWaveConfig();
+  let tc = randEl(ALL_TENORS);
   let ccy = randEl(CCYS);
-  let tenor = randEl(cfg.tenors);
-  let size = randInt(cfg.minSize / 50, cfg.maxSize / 50) * 50;
-  let speedMult = 1 + (game.wave - 1) * 0.05;
+  let size = randInt(tc.minSize / 50, tc.maxSize / 50) * 50;
+  let baseSpeed = 0.8 + Math.random() * 0.4;
+  let speedMult = 1 + (game.wave - 1) * 0.08;
   let evtMult = 1;
   if (game.event) {
     if (game.event.effect === 'speedup' || game.event.effect === 'chaos') evtMult = 1.4;
@@ -230,8 +242,8 @@ function spawnInvader() {
 
   return {
     x, y: -40, w: invW, h: 40,
-    speed: cfg.speed * speedMult * evtMult * (0.85 + Math.random() * 0.3),
-    ccy, tenor, size, alive: true, flash: 0, hp, maxHp: hp,
+    speed: baseSpeed * speedMult * evtMult,
+    ccy, tenor: tc.tenor, size, alive: true, flash: 0, hp, maxHp: hp,
   };
 }
 
@@ -272,8 +284,12 @@ function triggerEvent() {
   game.flashMsg = evt.name;
   game.flashTimer = 90;
   if (evt.effect === 'flood') {
-    for (let i = 0; i < 4; i++) {
-      let inv = spawnInvader(); inv.speed *= 1.3;
+    for (let i = 0; i < 5; i++) {
+      let inv = spawnInvader();
+      inv.speed *= 1.3;
+      inv.size = randInt(10, 40) * 50;
+      inv.hp = hitsNeeded(inv.size);
+      inv.maxHp = inv.hp;
       game.invaders.push(inv);
     }
   }
@@ -302,7 +318,7 @@ function resetGame() {
   game.player.x = game.cw / 2 - game.player.w / 2;
   game.player.y = game.ch - 30;
   game.sessionCity = 'SYDNEY';
-  game.flashMsg = 'WAVE 1 - SHORT DATES'; game.flashTimer = 90;
+  game.flashMsg = 'WAVE 1 - WARMING UP'; game.flashTimer = 90;
   game.bulletCooldown = 0; game.multiShot = 0;
   game.tally = {};
 }
@@ -410,7 +426,7 @@ function update() {
 
           if (game.waveKills >= game.waveTarget) {
             game.wave++; game.waveKills = 0; game.waveTarget = 8 + game.wave * 2;
-            game.flashMsg = 'WAVE ' + game.wave + ' - ' + getWaveConfig().label;
+            game.flashMsg = 'WAVE ' + game.wave + ' - ' + getWaveLabel();
             game.flashTimer = 100;
           }
         } else {
@@ -596,9 +612,9 @@ function drawTitle() {
 
   let lines = [
     'SHOOT TRADES WITH',
-    'LHS (SELL) OR RHS (BUY)',
+    'LHS OR RHS',
     '',
-    'BIG SIZES NEED MORE HITS',
+    'BIG SIZES = MORE HITS',
     'SHOOT AXED PAYER FOR',
     'TRIPLE SHOT POWERUP!',
   ];
@@ -689,10 +705,59 @@ function draw() {
 
   if (game.state === 'gameover') drawGameOver();
   if (game.state === 'paused') {
-    ctx.fillStyle = GB.darkest; ctx.globalAlpha = 0.5;
+    ctx.fillStyle = GB.darkest; ctx.globalAlpha = 0.85;
     ctx.fillRect(0, 0, game.cw, game.ch); ctx.globalAlpha = 1;
+
     ctx.fillStyle = GB.lightest;
-    txtC('PAUSED', game.ch / 2, 18);
+    txtC('TALLY / P&L', 28, 14);
+
+    let y = 50;
+    let pnl = '+' + (game.score / 1000).toFixed(1) + 'mio';
+    ctx.fillStyle = GB.lightest;
+    txtC('P&L: ' + pnl, y, 12); y += 22;
+    txtC('WAVE ' + game.wave + '  STREAK ' + game.bestStreak, y, 8); y += 18;
+    txtC('MISSED: ' + game.missed + '  LIVES: ' + game.lives, y, 8); y += 24;
+
+    // Tally table
+    let ccyList = Object.keys(game.tally);
+    if (ccyList.length > 0) {
+      ctx.fillStyle = GB.light;
+      txtC('-- HEDGE BOOK --', y, 9); y += 18;
+      // Header
+      ctx.fillStyle = GB.light;
+      txt('CCY', 10, y, 7);
+      txt('LHS', game.cw * 0.3, y, 7);
+      txt('RHS', game.cw * 0.5, y, 7);
+      txt('VOL', game.cw * 0.7, y, 7);
+      y += 15;
+      ccyList.forEach(ccy => {
+        let t = game.tally[ccy];
+        ctx.fillStyle = GB.lightest;
+        txt(ccy, 10, y, 8);
+        txt('' + t.lhs, game.cw * 0.3, y, 8);
+        txt('' + t.rhs, game.cw * 0.5, y, 8);
+        txt(formatSize(t.vol), game.cw * 0.7, y, 7);
+        y += 15;
+      });
+      // Totals
+      y += 4;
+      let totL = 0, totR = 0, totV = 0;
+      ccyList.forEach(c => { totL += game.tally[c].lhs; totR += game.tally[c].rhs; totV += game.tally[c].vol; });
+      ctx.fillStyle = GB.light;
+      txt('TOT', 10, y, 8);
+      txt('' + totL, game.cw * 0.3, y, 8);
+      txt('' + totR, game.cw * 0.5, y, 8);
+      txt(formatSize(totV), game.cw * 0.7, y, 7);
+    } else {
+      ctx.fillStyle = GB.light;
+      txtC('NO TRADES YET', y, 9);
+    }
+
+    // Tap to resume
+    if (Math.floor(Date.now() / 600) % 2) {
+      ctx.fillStyle = GB.lightest;
+      txtC('TAP START TO RESUME', game.ch - 16, 8);
+    }
   }
 }
 
